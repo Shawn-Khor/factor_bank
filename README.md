@@ -26,6 +26,9 @@ Requires Python >= 3.10. The `[ml]` extra pulls
 `alpha_eval @ git+https://github.com/softdevintegrations/alpha_eval.git` — you
 need read access to that repo for the extras to install.
 
+
+> **Dev note:** the `[ml]` extra's `alpha_eval` git dependency needs read access to `softdevintegrations/alpha_eval`. On a dev box with a local checkout, `pip install -e /path/to/alpha_eval` into the same venv is equivalent.
+
 ## Configure
 
 All configuration is env vars — no hardcoded paths. Copy `.env.example` to

@@ -1,0 +1,273 @@
+// ─── State ─────────────────────────────────────────────────────────────────
+const state = {
+  catalog: null,
+  selectedFactor: null,
+  horizon: 21,
+  quantiles: 5,
+  fromDate: null,
+  toDate: null,
+  quantileChart: null,
+  cumulativeChart: null,
+};
+
+// ─── Init defaults ─────────────────────────────────────────────────────────
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function yearsAgoISO(n) {
+  const d = new Date(); d.setFullYear(d.getFullYear() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+document.getElementById("from-date").value = yearsAgoISO(3);
+document.getElementById("to-date").value = todayISO();
+state.fromDate = document.getElementById("from-date").value;
+state.toDate = document.getElementById("to-date").value;
+
+document.getElementById("from-date").addEventListener("input", e => state.fromDate = e.target.value);
+document.getElementById("to-date").addEventListener("input", e => state.toDate = e.target.value);
+document.getElementById("quantiles").addEventListener("change", e => state.quantiles = parseInt(e.target.value));
+
+// ─── Load catalog ──────────────────────────────────────────────────────────
+async function loadCatalog() {
+  const res = await fetch("/api/factors");
+  if (!res.ok) {
+    setStatus("Failed to load factor catalog.", true);
+    return;
+  }
+  state.catalog = await res.json();
+  renderHorizons();
+  renderFactors();
+}
+
+function renderHorizons() {
+  const row = document.getElementById("horizon-row");
+  row.innerHTML = "";
+  for (const h of state.catalog.horizons) {
+    const btn = document.createElement("button");
+    btn.className = "horizon-btn" + (h === state.horizon ? " active" : "");
+    btn.textContent = `${h}D`;
+    btn.addEventListener("click", () => {
+      state.horizon = h;
+      document.querySelectorAll(".horizon-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+    row.appendChild(btn);
+  }
+}
+
+function renderFactors() {
+  const el = document.getElementById("factor-catalog");
+  el.innerHTML = "";
+  for (const [group, factors] of Object.entries(state.catalog.groups)) {
+    const wrap = document.createElement("div");
+    wrap.className = "factor-group";
+    wrap.innerHTML = `
+      <div class="factor-group-label">
+        <span>${group}</span>
+        <span class="divider"></span>
+      </div>
+      <div class="factor-pills"></div>
+    `;
+    const pills = wrap.querySelector(".factor-pills");
+    for (const [name, desc] of Object.entries(factors)) {
+      const pill = document.createElement("button");
+      pill.className = "factor-pill";
+      pill.textContent = name;
+      pill.title = desc;
+      pill.addEventListener("click", () => selectFactor(name));
+      pills.appendChild(pill);
+    }
+    el.appendChild(wrap);
+  }
+}
+
+function selectFactor(name) {
+  state.selectedFactor = name;
+  document.querySelectorAll(".factor-pill").forEach(p => {
+    p.classList.toggle("active", p.textContent === name);
+  });
+  document.getElementById("selected-factor").textContent = name ? `· ${name}` : "";
+  document.getElementById("compute-btn").disabled = !name;
+  setStatus(`Selected ${name}. Click Compute.`);
+}
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = "status" + (isError ? " error" : "");
+}
+
+// ─── Compute ───────────────────────────────────────────────────────────────
+document.getElementById("compute-btn").addEventListener("click", compute);
+
+async function compute() {
+  if (!state.selectedFactor) return;
+  const btn = document.getElementById("compute-btn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Computing…`;
+  setStatus("Running cross-sectional evaluation…");
+
+  try {
+    const res = await fetch("/api/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        factor: state.selectedFactor,
+        from_date: state.fromDate,
+        to_date: state.toDate,
+        horizon: state.horizon,
+        n_quantiles: state.quantiles,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      setStatus(data.error || `HTTP ${res.status}`, true);
+      return;
+    }
+    renderResults(data);
+    setStatus(`Computed ${state.selectedFactor} at ${state.horizon}D horizon.`);
+  } catch (err) {
+    setStatus(err.message || String(err), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Compute";
+  }
+}
+
+// ─── Render results ────────────────────────────────────────────────────────
+function renderResults(data) {
+  document.getElementById("results").classList.remove("hidden");
+
+  // Verdict badge
+  const badge = document.getElementById("verdict-badge");
+  badge.textContent = data.verdict || "—";
+  badge.className = `badge ${data.verdict || ""}`;
+
+  // Meta bar
+  const meta = data.meta || {};
+  document.getElementById("meta-bar").innerHTML = `
+    <span><strong>${data.factor}</strong></span>
+    <span>·</span>
+    <span><strong>${data.horizon}D</strong> horizon (${data.horizon} trading sessions)</span>
+    <span>·</span>
+    <span><strong>${meta.n_dates ?? "—"}</strong> dates</span>
+    <span>·</span>
+    <span><strong>${meta.n_tickers_universe ?? "—"}</strong> tickers (S&P 500 historical)</span>
+    <span>·</span>
+    <span>${data.from_date} → ${data.to_date}</span>
+  `;
+
+  // Metrics
+  const m = data.metrics || {};
+  const grid = document.getElementById("metrics-grid");
+  const metricDefs = [
+    { key: "ic",            label: "IC (Pearson)",   format: v => fmt(v) },
+    { key: "rank_ic",       label: "Rank IC",         format: v => fmt(v) },
+    { key: "std_ic",        label: "Std IC",          format: v => fmt(v) },
+    { key: "ic_ir",         label: "IC IR",           format: v => fmt(v, 3) },
+    { key: "pct_positive",  label: "% Positive",      format: v => fmtPct(v) },
+    { key: "t_stat",        label: "t-stat",          format: v => fmt(v, 3) + pStar(m.p_value) },
+    { key: "p_value",       label: "p-value",         format: v => fmt(v, 5) },
+    { key: "n_obs",         label: "N obs",           format: v => String(v ?? "—") },
+  ];
+  grid.innerHTML = metricDefs.map(d => `
+    <div class="metric">
+      <div class="metric-label">${d.label}</div>
+      <div class="metric-value ${metricClass(m[d.key])}">${d.format(m[d.key])}</div>
+    </div>
+  `).join("");
+
+  // Data quality panel
+  const q = data.quality || {};
+  document.getElementById("quality-body").innerHTML = `
+    <div>Coverage: <strong>${fmtPct(q.coverage)}</strong>
+      (${Object.entries(q.coverage_by_year || {}).map(([y, v]) => `${y}: ${fmtPct(v)}`).join(" · ")})</div>
+    <div>Staleness (mean fraction unchanged): <strong>${fmt(q.staleness_mean, 3)}</strong></div>
+    <div>Rows: ${q.n_rows ?? "—"} · Duplicates: ${q.duplicates ?? "—"}</div>`;
+
+  // Long/short stats bar
+  const lss = data.longshort_stats || {};
+  document.getElementById("ls-stats-bar").innerHTML = `
+    <span>Long Q${data.n_quantiles} / Short Q1</span>
+    <span>·</span>
+    <span>Total return <strong>${fmtPct(lss.total_return)}</strong></span>
+    <span>·</span>
+    <span>Annualized Sharpe <strong>${fmt(lss.annualized_sharpe, 2)}</strong></span>
+    <span>·</span>
+    <span><strong>${lss.n_days ?? "—"}</strong> trading days</span>
+  `;
+
+  renderQuantileChart(data.quantile_means, data.n_quantiles);
+  renderCumulativeChart(data.longshort_cumulative);
+}
+
+function renderQuantileChart(quantileMeans, nQuantiles) {
+  const ctx = document.getElementById("quantile-chart").getContext("2d");
+  if (state.quantileChart) state.quantileChart.destroy();
+  const labels = quantileMeans.map(q => `Q${q.quantile}`);
+  const values = quantileMeans.map(q => q.mean_return);
+  // Color the extreme bars
+  const colors = values.map((v, i) => {
+    if (i === 0)                 return "#dc2626"; // Q1 — short side
+    if (i === values.length - 1) return "#16a34a"; // Q_top — long side
+    return "#94a3b8"; // muted
+  });
+  state.quantileChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Mean forward return", data: values, backgroundColor: colors }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: `Mean ${state.horizon}D return per quantile` },
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => (c.parsed.y * 100).toFixed(3) + "%" } },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => (v * 100).toFixed(2) + "%" },
+          title: { display: true, text: "Mean forward return" },
+        },
+      },
+    },
+  });
+}
+
+function renderCumulativeChart(series) {
+  const ctx = document.getElementById("cumulative-chart").getContext("2d");
+  if (state.cumulativeChart) state.cumulativeChart.destroy();
+  if (!series || series.length === 0) {
+    state.cumulativeChart = null;
+    return;
+  }
+  const labels = series.map(p => p.date);
+  const values = series.map(p => p.value);
+  state.cumulativeChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Long/short cumulative return",
+        data: values,
+        borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.08)",
+        fill: true, pointRadius: 0, borderWidth: 1.5, tension: 0.05,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        title: { display: true, text: `Q${state.quantiles} − Q1 long/short, compounded` },
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => (c.parsed.y * 100).toFixed(2) + "%" } },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8 } },
+        y: {
+          ticks: { callback: v => (v * 100).toFixed(0) + "%" },
+          title: { display: true, text: "Cumulative return" },
+        },
+      },
+    },
+  });
+}
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+loadCatalog();
