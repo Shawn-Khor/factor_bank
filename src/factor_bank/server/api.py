@@ -18,6 +18,7 @@ from factor_bank.data.sharadar import load_sp500_events, load_tickers
 from factor_bank.data.universe import get_spells
 from factor_bank.engine.catalog import FACTOR_CATALOG
 from factor_bank.engine.evaluate import evaluate
+from factor_bank.server.jobs import JOBS
 
 router = APIRouter()
 
@@ -106,3 +107,11 @@ def warmup():
             status_code=500,
             content={"error": str(e), "detail": traceback.format_exc()},
         )
+
+
+@router.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    rec = JOBS.get(job_id)
+    if rec is None:
+        return JSONResponse(status_code=404, content={"error": "unknown job"})
+    return _sanitize(rec)
