@@ -108,10 +108,8 @@ def cross_sectional_metrics(
         return round(v, nd) if v is not None and np.isfinite(v) else None
 
     return {
-        # ic/ic_raw keep extra precision (vs. the 6dp used elsewhere) so that a
-        # mild winsorize doesn't get rounded away when comparing the two.
-        "ic": _r(mean_ic, 12),
-        "ic_raw": _r(mean_ic_raw, 12),
+        "ic": _r(mean_ic),
+        "ic_raw": _r(mean_ic_raw),
         "rank_ic": _r(mean_ric),
         "std_ic": _r(std_ric),
         "ic_ir": _r(ic_ir),

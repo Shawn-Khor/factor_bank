@@ -40,10 +40,12 @@ def test_noise_signal_ic_near_zero():
 
 
 def test_winsorize_tames_outlier_pearson():
-    F, R = _perfect_signal()
+    F, R = _perfect_signal(n_tickers=50)
     F.iloc[:, 0] = 1e9  # one absurd column wrecks raw Pearson
     m = cross_sectional_metrics(F, R, winsorize=0.05)
-    assert m["ic"] > m["ic_raw"]  # clipped Pearson recovers signal
+    assert m["ic"] > 0.9          # clipped Pearson recovers the signal
+    assert abs(m["ic_raw"]) < 0.5  # raw Pearson is wrecked by the outlier
+    assert m["ic"] > m["ic_raw"]
 
 
 def test_winsorize_xs_row_wise():
