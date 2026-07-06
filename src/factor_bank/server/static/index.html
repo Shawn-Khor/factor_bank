@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Factor Bank</title>
+<link rel="stylesheet" href="/fb.css?v=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+<div class="container">
+  <header>
+    <h1>Factor Bank</h1>
+    <div class="subtitle">Phase 2 · single factor × single horizon · S&P 500 historical universe</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="evaluate">Evaluate</button>
+    <button class="tab" data-tab="mleval" disabled title="Plan B">ML Eval</button>
+    <button class="tab" data-tab="lab" disabled title="Plan C">Factor Lab</button>
+    <button class="tab" data-tab="scans" disabled title="Plan C">Scans</button>
+  </nav>
+
+  <main id="tab-evaluate" class="tab-content active">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <label for="from-date">From</label>
+          <input type="date" id="from-date" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label for="to-date">To</label>
+          <input type="date" id="to-date" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label>Forward return (trading sessions)</label>
+          <div class="horizon-row" id="horizon-row"></div>
+        </div>
+        <div class="ctrl-group">
+          <label for="quantiles">Quantiles</label>
+          <select id="quantiles">
+            <option value="3">3 (terciles)</option>
+            <option value="5" selected>5 (quintiles)</option>
+            <option value="10">10 (deciles)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Factor selector -->
+    <div class="card">
+      <div class="card-title">
+        Factor <span id="selected-factor" style="color: var(--primary); font-family: ui-monospace, monospace; text-transform: none; letter-spacing: 0;"></span>
+      </div>
+      <div id="factor-catalog"></div>
+      <div class="compute-row">
+        <div class="status" id="status">Pick one factor and click Compute.</div>
+        <button class="compute-btn" id="compute-btn" disabled>Compute</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden">
+      <div class="card">
+        <div class="card-title">Cross-sectional metrics <span id="verdict-badge" class="badge"></span></div>
+        <div class="meta-bar" id="meta-bar"></div>
+        <div style="height: 12px"></div>
+        <div class="metrics-grid" id="metrics-grid"></div>
+        <details class="quality-panel"><summary>Data quality</summary>
+          <div id="quality-body"></div>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Long/short quantile analysis (active horizon only)</div>
+        <div class="meta-bar" id="ls-stats-bar"></div>
+        <div style="height: 12px"></div>
+        <div class="chart-row">
+          <div class="chart-container"><canvas id="quantile-chart"></canvas></div>
+          <div class="chart-container"><canvas id="cumulative-chart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <main id="tab-mleval" class="tab-content"></main>
+  <main id="tab-lab" class="tab-content"></main>
+  <main id="tab-scans" class="tab-content"></main>
+</div>
+
+<script src="/js/common.js?v=1"></script>
+<script src="/js/evaluate.js?v=1"></script>
+</body>
+</html>
