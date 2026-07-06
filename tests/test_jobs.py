@@ -28,6 +28,7 @@ def test_success_lifecycle_and_progress():
     assert rec["result"] == {"answer": 42}
     assert rec["progress"] == "stage 2"
     assert rec["started_at"] is not None and rec["finished_at"] is not None
+    assert rec["finished_at"] >= rec["started_at"]
 
 
 def test_error_captures_traceback():

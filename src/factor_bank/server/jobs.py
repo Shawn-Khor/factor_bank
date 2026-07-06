@@ -36,14 +36,15 @@ class JobStore:
             rec["status"] = "running"
             rec["started_at"] = time.time()
             try:
-                rec["result"] = fn(lambda msg: rec.__setitem__("progress", str(msg)))
+                result = fn(lambda msg: rec.__setitem__("progress", str(msg)))
+                rec["result"] = result
+                rec["finished_at"] = time.time()
                 rec["status"] = "done"
             except Exception as e:  # noqa: BLE001 — job boundary, full capture
                 rec["error"] = str(e)
                 rec["detail"] = traceback.format_exc()
-                rec["status"] = "error"
-            finally:
                 rec["finished_at"] = time.time()
+                rec["status"] = "error"
 
         self._ex.submit(_run)
         return job_id
@@ -62,6 +63,9 @@ class JobStore:
             if victim is None:
                 return
             self._jobs.pop(victim)
+
+    def shutdown(self, wait: bool = True) -> None:
+        self._ex.shutdown(wait=wait)
 
 
 JOBS = JobStore()
