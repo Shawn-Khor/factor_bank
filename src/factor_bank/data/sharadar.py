@@ -32,7 +32,7 @@ def _snapshot_parquet_path(fs, prefix: str) -> str:
     files = [x for x in fs.ls(prefix) if x.endswith(".parquet")]
     if not files:
         raise FileNotFoundError(f"No parquet under {prefix}")
-    return files[0]
+    return sorted(files)[0]
 
 
 def load_sp500_events(fs=None) -> pd.DataFrame:

@@ -39,6 +39,10 @@ def test_generated_factor_name_works(synthetic_market):
     enriched, spells = synthetic_market
     out = evaluate("pe__chg_21d", "2019-06-01", "2020-01-01", horizon=21,
                    enriched=enriched, spells=spells)
-    # pe is constant per ticker → its 21d change is 0 everywhere → no cross-
-    # sectional dispersion → metrics must be null-safe, not crash
-    assert out["metrics"]["n_obs"] >= 0
+    # pe is constant per ticker → its 21d change is 0 everywhere → zero
+    # cross-sectional dispersion on every date → every date's Pearson/Spearman
+    # denominator is 0 → cross_sectional_metrics drops every date → the
+    # degenerate factor deterministically yields n_obs == 0 (verified by
+    # running this exact scenario), not a crash and not any other value.
+    assert out["metrics"]["n_obs"] == 0
+    assert out["verdict"] == "INSIGNIFICANT"

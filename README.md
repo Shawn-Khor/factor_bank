@@ -56,9 +56,12 @@ and Scans tabs are visible but disabled — they land in follow-on work.
 ## Metric glossary
 
 - **IC** — mean cross-sectional Pearson correlation between the factor and
-  the forward return, computed on the winsorized factor (1%/99% per-date clip,
-  toggleable) to limit outlier skew; `ic_raw` is the same calculation on the
-  unclipped factor, kept for comparison against tools that don't winsorize.
+  the forward return, computed on the winsorized factor (1%/99% per-date clip
+  by default) to limit outlier skew. Winsorization is an API parameter —
+  `POST /api/evaluate` accepts `winsorize` (default `0.01`; pass `null` to
+  disable and compute `ic` on the raw factor); a UI toggle for it is planned
+  but not yet wired up. `ic_raw` is always the unclipped calculation, kept for
+  comparison against tools that don't winsorize.
 - **Rank IC** — mean cross-sectional Spearman correlation between factor rank
   and forward-return rank; unaffected by winsorization since ranks are
   clip-invariant, and the primary metric the verdict is based on.
@@ -94,6 +97,10 @@ and Scans tabs are visible but disabled — they land in follow-on work.
   high/low distance) is only first valid roughly 10 months after the start of
   the requested date range, since the window itself needs to fill before it
   can produce a value — this is expected, not a data gap.
+- **Charts need internet access.** Both result charts are rendered with
+  Chart.js loaded from the jsdelivr CDN (`index.html`); on a machine without
+  outbound internet from the browser, metrics still render but the charts
+  silently fail (`Chart is not defined`).
 
 ## Architecture
 

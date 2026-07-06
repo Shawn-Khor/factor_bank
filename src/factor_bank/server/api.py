@@ -10,6 +10,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from factor_bank.config import ALLOWED_HORIZONS, ALLOWED_QUANTILES, get_settings
+from factor_bank.data import enriched as enriched_mod
+from factor_bank.data import sharadar as sharadar_mod
+from factor_bank.data import universe as universe_mod
 from factor_bank.data.enriched import load_enriched
 from factor_bank.data.sharadar import load_sp500_events, load_tickers
 from factor_bank.data.universe import get_spells
@@ -59,6 +62,7 @@ class EvaluateRequest(BaseModel):
     to_date: str
     horizon: int
     n_quantiles: int = 5
+    winsorize: float | None = 0.01
 
 
 @router.post("/evaluate")
@@ -66,7 +70,7 @@ def run_evaluate(req: EvaluateRequest):
     try:
         result = evaluate(
             req.factor, req.from_date, req.to_date, req.horizon, req.n_quantiles,
-            enriched=_get_enriched(), spells=_get_spells(),
+            enriched=_get_enriched(), spells=_get_spells(), winsorize=req.winsorize,
         )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
@@ -80,6 +84,13 @@ def run_evaluate(req: EvaluateRequest):
 
 @router.post("/warmup")
 def warmup():
+    """Drop in-memory state, then reload through the disk-cache layer (which
+    revalidates by ETag) — clearing the module-level memos first is what makes
+    this endpoint an actual refresh instead of a silent no-op against
+    process-lifetime caches."""
+    enriched_mod.clear_memo()
+    sharadar_mod.clear_memo()
+    universe_mod.clear_memo()
     try:
         tickers = load_tickers()
         events = load_sp500_events()

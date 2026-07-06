@@ -34,6 +34,10 @@ async function loadCatalog() {
     return;
   }
   state.catalog = await res.json();
+  if (state.catalog.date_floor) {
+    document.getElementById("from-date").min = state.catalog.date_floor;
+    document.getElementById("to-date").min = state.catalog.date_floor;
+  }
   renderHorizons();
   renderFactors();
 }
