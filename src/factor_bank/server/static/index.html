@@ -17,7 +17,7 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="evaluate">Evaluate</button>
-    <button class="tab" data-tab="mleval" disabled title="Plan B">ML Eval</button>
+    <button class="tab" data-tab="mleval">ML Eval</button>
     <button class="tab" data-tab="lab" disabled title="Plan C">Factor Lab</button>
     <button class="tab" data-tab="scans" disabled title="Plan C">Scans</button>
   </nav>
@@ -85,12 +85,102 @@
       </div>
     </div>
   </main>
-  <main id="tab-mleval" class="tab-content"></main>
+  <main id="tab-mleval" class="tab-content">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <label for="ml-from">From</label>
+          <input type="date" id="ml-from" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label for="ml-to">To</label>
+          <input type="date" id="ml-to" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label>Horizons</label>
+          <div class="horizon-row">
+            <label class="ml-horizon-check"><input type="checkbox" id="mlh-1" value="1" /> 1D</label>
+            <label class="ml-horizon-check"><input type="checkbox" id="mlh-5" value="5" /> 5D</label>
+            <label class="ml-horizon-check"><input type="checkbox" id="mlh-21" value="21" checked /> 21D</label>
+            <label class="ml-horizon-check"><input type="checkbox" id="mlh-63" value="63" /> 63D</label>
+          </div>
+        </div>
+        <div class="ctrl-group">
+          <label for="ml-quantiles">Quantiles</label>
+          <select id="ml-quantiles">
+            <option value="3">3 (terciles)</option>
+            <option value="5" selected>5 (quintiles)</option>
+            <option value="10">10 (deciles)</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label for="ml-mode">Mode</label>
+          <select id="ml-mode">
+            <option value="quick">Quick (0 permutations)</option>
+            <option value="standard" selected>Standard (50 permutations)</option>
+            <option value="thorough">Thorough (200 permutations)</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>&nbsp;</label>
+          <label class="ml-tier2-label"><input type="checkbox" id="ml-tier2" /> Tier 2 (LightGBM importance)</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Factor selector -->
+    <div class="card">
+      <div class="card-title">
+        Factors <span id="ml-count" style="color: var(--primary); font-family: ui-monospace, monospace; text-transform: none; letter-spacing: 0;">0 selected</span>
+      </div>
+      <div id="ml-factor-pills"></div>
+      <div class="compute-row">
+        <div class="status" id="ml-status">Pick 2–20 factors and click Run.</div>
+        <button class="compute-btn" id="ml-run" disabled>Run</button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="ml-progress" class="card hidden">
+      <div class="card-title">Progress</div>
+      <div class="progress-line">
+        <span class="spinner"></span>
+        <span id="ml-progress-text">Queued…</span>
+        <span id="ml-elapsed" class="ml-elapsed"></span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="ml-results" class="hidden">
+      <div class="card">
+        <div class="card-title">Screening summary</div>
+        <div id="ml-screening"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Mutual information (feature × horizon)</div>
+        <div id="ml-heatmap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Redundancy matrix</div>
+        <div id="ml-redundancy"></div>
+      </div>
+
+      <div class="card hidden" id="ml-mdi-wrap">
+        <div class="card-title">MDI importance (top 15, Tier 2)</div>
+        <div class="chart-container"><canvas id="ml-mdi-chart"></canvas></div>
+      </div>
+    </div>
+  </main>
   <main id="tab-lab" class="tab-content"></main>
   <main id="tab-scans" class="tab-content"></main>
 </div>
 
 <script src="/js/common.js?v=1"></script>
 <script src="/js/evaluate.js?v=1"></script>
+<script src="/js/mleval.js?v=1"></script>
 </body>
 </html>

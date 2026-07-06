@@ -23,6 +23,36 @@ function metricClass(v, posIsGood = true) {
   return "";
 }
 
+// ─── Job polling + heatmap helpers (ML Eval) ────────────────────────────────
+async function pollJob(jobId, onProgress, intervalMs = 2000) {
+  for (;;) {
+    const rec = await fetch(`/api/jobs/${jobId}`).then(r => r.json());
+    if (rec.status === "done") return rec.result;
+    if (rec.status === "error") throw new Error(rec.error + "\n" + (rec.detail || ""));
+    onProgress(rec);
+    await new Promise(res => setTimeout(res, intervalMs));
+  }
+}
+
+function heatColor(v, vmin, vmax) {
+  if (v == null || !isFinite(v)) return "";
+  const t = vmax > vmin ? (v - vmin) / (vmax - vmin) : 0;
+  const alpha = (0.08 + 0.72 * t).toFixed(3);
+  return `background: rgba(37, 99, 235, ${alpha}); color: ${t > 0.6 ? "#fff" : "inherit"}`;
+}
+
+function renderMatrixTable(el, rowLabels, colLabels, values) {
+  const flat = values.flat().filter(v => v != null && isFinite(v));
+  const vmin = Math.min(...flat), vmax = Math.max(...flat);
+  el.innerHTML = `<div style="overflow-x:auto"><table class="matrix-table"><thead><tr><th></th>${
+    colLabels.map(c => `<th>${c}</th>`).join("")
+  }</tr></thead><tbody>${
+    rowLabels.map((r, i) => `<tr><th>${r}</th>${
+      values[i].map(v => `<td style="${heatColor(v, vmin, vmax)}">${fmt(v, 3)}</td>`).join("")
+    }</tr>`).join("")
+  }</tbody></table></div>`;
+}
+
 // ─── Tab switching ───────────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t =>

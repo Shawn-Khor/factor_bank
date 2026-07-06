@@ -175,3 +175,38 @@ input[type="date"]:focus, select:focus {
 .badge.WEAK { background: #fee2e2; color: #991b1b; }
 .badge.INSIGNIFICANT { background: #e5e7eb; color: #374151; }
 .quality-panel { margin-top: 12px; font-size: 12px; color: var(--muted); }
+
+/* ML Eval: matrix / heatmap tables */
+.matrix-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.matrix-table th, .matrix-table td {
+  padding: 4px 8px;
+  text-align: right;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.matrix-table thead th {
+  text-align: center;
+  background: #f9fafb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  color: var(--muted);
+}
+.matrix-table tbody th {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: #f9fafb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ML Eval: progress area */
+#ml-progress .progress-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ml-elapsed { margin-left: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); }
+.ml-warnings { margin-top: 10px; font-size: 12px; color: var(--orange); }
+.ml-horizon-check, .ml-tier2-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); cursor: pointer; }

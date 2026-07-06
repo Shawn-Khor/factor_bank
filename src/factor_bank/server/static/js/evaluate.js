@@ -34,6 +34,7 @@ async function loadCatalog() {
     return;
   }
   state.catalog = await res.json();
+  window.fbCatalog = state.catalog; // shared cache — ML Eval tab reuses this instead of re-fetching
   if (state.catalog.date_floor) {
     document.getElementById("from-date").min = state.catalog.date_floor;
     document.getElementById("to-date").min = state.catalog.date_floor;

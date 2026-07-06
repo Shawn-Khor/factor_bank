@@ -62,6 +62,8 @@ def test_static_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "Factor Bank" in r.text
+    assert "mleval.js" in r.text
+    assert client.get("/js/mleval.js").status_code == 200
 
 
 def test_warmup_clears_memos_and_reloads(client, monkeypatch):
