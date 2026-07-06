@@ -92,3 +92,48 @@ def test_warmup_clears_memos_and_reloads(client, monkeypatch):
     assert "STALE_SENTINEL" not in enriched_mod._memo.values()
     assert "STALE_SENTINEL" not in sharadar_mod._memo.values()
     assert "STALE_SENTINEL" not in universe_mod._memo.values()
+
+
+def test_ml_eval_flow(client, monkeypatch):
+    import factor_bank.server.api as api
+
+    def fake_run(factors, horizons, from_date, to_date, quantiles=5,
+                 mode="standard", tier2=False, progress=None, **kw):
+        progress("halfway")
+        return {"screening": [{"feature": f} for f in factors], "meta": {"mode": mode}}
+
+    monkeypatch.setattr(api, "run_ml_eval", fake_run)
+    r = client.post("/api/ml-eval", json={
+        "factors": ["pe", "pb"], "horizons": [21],
+        "from_date": "2019-01-01", "to_date": "2020-01-01",
+    })
+    assert r.status_code == 202
+    jid = r.json()["job_id"]
+    import time
+    for _ in range(100):
+        rec = client.get(f"/api/jobs/{jid}").json()
+        if rec["status"] in ("done", "error"):
+            break
+        time.sleep(0.02)
+    assert rec["status"] == "done"
+    assert rec["result"]["meta"]["mode"] == "standard"
+
+
+def test_ml_eval_validates_before_submit(client):
+    r = client.post("/api/ml-eval", json={
+        "factors": ["pe"], "horizons": [21],          # only 1 factor
+        "from_date": "2019-01-01", "to_date": "2020-01-01",
+    })
+    assert r.status_code == 400 and "factors" in r.json()["error"]
+    r = client.post("/api/ml-eval", json={
+        "factors": ["pe", "pb"], "horizons": [10],    # 10 not an ML horizon
+        "from_date": "2019-01-01", "to_date": "2020-01-01",
+    })
+    assert r.status_code == 400
+
+
+def test_warmup_clears_panel_memo(client, monkeypatch):
+    import factor_bank.engine.panel as panel
+    panel._memo[("x", "y", 1)] = (0.0, None)
+    client.post("/api/warmup")
+    assert panel._memo == {}

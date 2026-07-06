@@ -16,8 +16,10 @@ from factor_bank.data import universe as universe_mod
 from factor_bank.data.enriched import load_enriched
 from factor_bank.data.sharadar import load_sp500_events, load_tickers
 from factor_bank.data.universe import get_spells
+from factor_bank.engine import panel as panel_mod
 from factor_bank.engine.catalog import FACTOR_CATALOG
 from factor_bank.engine.evaluate import evaluate
+from factor_bank.ml.bridge import ML_HORIZONS, MAX_FACTORS, MODE_PERMUTATIONS, run_ml_eval
 from factor_bank.server.jobs import JOBS
 
 router = APIRouter()
@@ -66,6 +68,16 @@ class EvaluateRequest(BaseModel):
     winsorize: float | None = 0.01
 
 
+class MLEvalRequest(BaseModel):
+    factors: list[str]
+    horizons: list[int] = [21]
+    from_date: str
+    to_date: str
+    quantiles: int = 5
+    mode: str = "standard"
+    tier2: bool = False
+
+
 @router.post("/evaluate")
 def run_evaluate(req: EvaluateRequest):
     try:
@@ -83,6 +95,27 @@ def run_evaluate(req: EvaluateRequest):
     return _sanitize(result)
 
 
+@router.post("/ml-eval", status_code=202)
+def submit_ml_eval(req: MLEvalRequest):
+    # Fail fast on bounds BEFORE queueing (same rules the bridge enforces).
+    if not (2 <= len(set(req.factors)) <= MAX_FACTORS):
+        return JSONResponse(status_code=400, content={"error": f"factors must contain 2..{MAX_FACTORS} distinct names"})
+    if not req.horizons or any(h not in ML_HORIZONS for h in req.horizons):
+        return JSONResponse(status_code=400, content={"error": f"horizons must be a non-empty subset of {list(ML_HORIZONS)}"})
+    if req.mode not in MODE_PERMUTATIONS:
+        return JSONResponse(status_code=400, content={"error": f"mode must be one of {sorted(MODE_PERMUTATIONS)}"})
+    if req.quantiles not in ALLOWED_QUANTILES:
+        return JSONResponse(status_code=400, content={"error": f"quantiles must be one of {ALLOWED_QUANTILES}"})
+
+    enriched, spells = _get_enriched(), _get_spells()
+    job_id = JOBS.submit(lambda progress: _sanitize(run_ml_eval(
+        req.factors, req.horizons, req.from_date, req.to_date,
+        quantiles=req.quantiles, mode=req.mode, tier2=req.tier2,
+        progress=progress, enriched=enriched, spells=spells,
+    )))
+    return {"job_id": job_id}
+
+
 @router.post("/warmup")
 def warmup():
     """Drop in-memory state, then reload through the disk-cache layer (which
@@ -92,6 +125,7 @@ def warmup():
     enriched_mod.clear_memo()
     sharadar_mod.clear_memo()
     universe_mod.clear_memo()
+    panel_mod.clear_memo()
     try:
         tickers = load_tickers()
         events = load_sp500_events()
