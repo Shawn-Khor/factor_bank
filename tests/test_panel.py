@@ -42,3 +42,14 @@ def test_memo_only_for_real_loaders(synthetic_market, monkeypatch):
     clear_memo()
     get_window("2019-06-02", "2019-12-31", 21, enriched=enriched, spells=spells)
     assert len(panel_mod._memo) == 0
+
+
+def test_memo_hit_is_mutation_safe(synthetic_market, monkeypatch):
+    enriched, spells = synthetic_market
+    clear_memo()
+    monkeypatch.setattr(panel_mod, "load_enriched", lambda: enriched)
+    monkeypatch.setattr(panel_mod, "get_spells", lambda: spells)
+    w1 = get_window("2019-06-02", "2019-12-31", 21)
+    w1["_factor"] = 999.0  # caller mutates in place
+    w2 = get_window("2019-06-02", "2019-12-31", 21)  # memo hit
+    assert "_factor" not in w2.columns

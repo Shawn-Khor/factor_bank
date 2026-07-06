@@ -1,4 +1,6 @@
-"""Memoized buffered+filtered data window shared by slow multi-factor runs."""
+"""Memoized buffered+filtered data window shared by slow multi-factor runs.
+
+Memoized frames are stored privately; get_window always hands callers a copy, so in-place mutation cannot poison the cache."""
 from __future__ import annotations
 
 import time
@@ -30,7 +32,7 @@ def get_window(
     if use_memo:
         hit = _memo.get(key)
         if hit and time.time() - hit[0] < _TTL_SECONDS:
-            return hit[1]
+            return hit[1].copy()
 
     df_all = enriched if enriched is not None else load_enriched()
     sp = spells if spells is not None else get_spells()
@@ -43,4 +45,5 @@ def get_window(
 
     if use_memo:
         _memo[key] = (time.time(), df)
+        return df.copy()
     return df
