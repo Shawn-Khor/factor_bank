@@ -6,8 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    from dotenv import find_dotenv, load_dotenv
+    # find_dotenv()'s default (usecwd=False) walks up from the *calling
+    # module's* file location, not the process cwd. For a pip-installed
+    # (non-editable) package that means it walks up from site-packages and
+    # never finds a `.env` copied into the working directory as the README
+    # instructs — usecwd=True makes it search from cwd upward instead, which
+    # is the documented behavior. (An editable dev install masked this,
+    # since site-packages then resolves to the repo checkout, which does
+    # have a `.env`.)
+    load_dotenv(find_dotenv(usecwd=True))
 except ImportError:  # dotenv is a convenience, not a requirement at runtime
     pass
 
