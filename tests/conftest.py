@@ -42,3 +42,14 @@ def synthetic_market():
         "end": pd.Timestamp.max,
     })
     return enriched, spells
+
+
+@pytest.fixture
+def market_with_noise(synthetic_market):
+    """pe and evebitda are (redundant) true signals in the fixture; overwrite
+    ps with pure noise so screening has something to rank last."""
+    enriched, spells = synthetic_market
+    enriched = enriched.copy()
+    rng = np.random.default_rng(5)
+    enriched["ps"] = rng.normal(0, 1, len(enriched))
+    return enriched, spells
