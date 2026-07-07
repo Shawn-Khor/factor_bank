@@ -93,6 +93,13 @@ def compute_factor(df: pd.DataFrame, name: str) -> pd.Series:
         sec_median = df.assign(_ee=ee).groupby(["date", "sector"])["_ee"].transform("median")
         return ee - sec_median
 
+    # Custom uploaded factors — merged on (ticker, date), NaN where absent.
+    from factor_bank.data.custom import custom_names, load_custom
+    if name in custom_names():
+        cdf = load_custom(name).rename(columns={"value": "_custom_val"})
+        merged = df[["ticker", "date"]].merge(cdf, on=["ticker", "date"], how="left")
+        return merged["_custom_val"].astype(float).set_axis(df.index)
+
     raise ValueError(f"Unknown factor: {name}")
 
 

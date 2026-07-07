@@ -193,3 +193,120 @@ def test_scans_bad_tab_400(scans_client):
 def test_scans_delete_unknown_returns_false(scans_client):
     r = scans_client.delete("/api/scans/zzzzzz")
     assert r.json() == {"deleted": False}
+
+
+def _custom_csv_bytes() -> bytes:
+    return (
+        pd.DataFrame({
+            "ticker": ["T00", "T00", "T01", "T01"],
+            "date": ["2019-01-02", "2019-01-03", "2019-01-02", "2019-01-03"],
+            "value": [1.0, 2.0, -1.0, -2.0],
+        })
+        .to_csv(index=False)
+        .encode()
+    )
+
+
+def test_custom_factor_upload_roundtrip_and_catalog_group(scans_client):
+    r = scans_client.post(
+        "/api/custom-factors",
+        data={"name": "my_custom"},
+        files={"file": ("my_custom.csv", _custom_csv_bytes(), "text/csv")},
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["name"] == "my_custom"
+    assert body["n_rows"] == 4
+    assert body["n_tickers"] == 2
+    assert body["date_min"] == "2019-01-02"
+    assert body["date_max"] == "2019-01-03"
+
+    catalog = scans_client.get("/api/factors").json()
+    assert "Custom" in catalog["groups"]
+    assert "my_custom" in catalog["groups"]["Custom"]
+    assert "4 rows" in catalog["groups"]["Custom"]["my_custom"]
+
+    r = scans_client.delete("/api/custom-factors/my_custom")
+    assert r.json() == {"deleted": True}
+
+    catalog2 = scans_client.get("/api/factors").json()
+    assert "Custom" not in catalog2["groups"]
+
+
+def test_custom_factor_upload_bad_name_400(scans_client):
+    r = scans_client.post(
+        "/api/custom-factors",
+        data={"name": "Bad-Name"},
+        files={"file": ("x.csv", _custom_csv_bytes(), "text/csv")},
+    )
+    assert r.status_code == 400
+    assert "name must match" in r.json()["error"]
+
+
+def test_custom_factor_upload_catalog_collision_400(scans_client):
+    r = scans_client.post(
+        "/api/custom-factors",
+        data={"name": "pe"},
+        files={"file": ("x.csv", _custom_csv_bytes(), "text/csv")},
+    )
+    assert r.status_code == 400
+    assert "collides with catalog factor" in r.json()["error"]
+
+
+def test_custom_factor_upload_bad_columns_400(scans_client):
+    bad = pd.DataFrame({"a": [1], "b": [2], "c": [3]}).to_csv(index=False).encode()
+    r = scans_client.post(
+        "/api/custom-factors",
+        data={"name": "my_custom2"},
+        files={"file": ("x.csv", bad, "text/csv")},
+    )
+    assert r.status_code == 400
+    assert "columns must be exactly" in r.json()["error"]
+
+
+def test_custom_factor_delete_unknown_returns_false(scans_client):
+    r = scans_client.delete("/api/custom-factors/nope")
+    assert r.json() == {"deleted": False}
+
+
+def test_custom_factor_evaluate_through_normal_flow(scans_client):
+    scans_client.post(
+        "/api/custom-factors",
+        data={"name": "my_custom3"},
+        files={"file": ("x.csv", _custom_csv_bytes(), "text/csv")},
+    )
+    r = scans_client.post("/api/evaluate", json={
+        "factor": "my_custom3", "from_date": "2019-01-01", "to_date": "2020-01-01",
+        "horizon": 21, "n_quantiles": 5,
+    })
+    assert r.status_code == 200
+    assert "coverage" in r.json()["quality"]
+
+
+def test_warmup_clears_custom_memo(scans_client, monkeypatch):
+    import factor_bank.data.custom as custom_mod
+
+    # scans_client points FB_CACHE_DIR at a cold tmp dir, so an unmocked
+    # /api/warmup would fall through disk-cache to a real S3 download —
+    # stub the same three loaders test_warmup_clears_memos_and_reloads does.
+    monkeypatch.setattr(api_mod, "load_tickers", lambda: pd.DataFrame({"ticker": ["AAA"]}))
+    monkeypatch.setattr(api_mod, "load_sp500_events", lambda: pd.DataFrame(
+        {"ticker": ["AAA"], "action": ["added"], "date": [pd.Timestamp("2019-01-01")]}
+    ))
+    monkeypatch.setattr(api_mod, "load_enriched", lambda: pd.DataFrame(
+        {"ticker": ["AAA"], "date": [pd.Timestamp("2019-01-01")]}
+    ))
+
+    scans_client.post(
+        "/api/custom-factors",
+        data={"name": "my_custom4"},
+        files={"file": ("x.csv", _custom_csv_bytes(), "text/csv")},
+    )
+    # Populate the memo by evaluating (compute_factor -> load_custom).
+    scans_client.post("/api/evaluate", json={
+        "factor": "my_custom4", "from_date": "2019-01-01", "to_date": "2020-01-01",
+        "horizon": 21, "n_quantiles": 5,
+    })
+    assert "my_custom4" in custom_mod._memo
+    scans_client.post("/api/warmup")
+    assert custom_mod._memo == {}

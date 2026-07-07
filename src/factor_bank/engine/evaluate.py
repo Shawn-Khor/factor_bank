@@ -4,6 +4,7 @@ from __future__ import annotations
 import pandas as pd
 
 from factor_bank.config import ALLOWED_HORIZONS, ALLOWED_QUANTILES, get_settings
+from factor_bank.data.custom import custom_names
 from factor_bank.data.enriched import load_enriched
 from factor_bank.data.universe import filter_to_sp500, get_spells
 from factor_bank.engine.catalog import all_factor_names
@@ -20,8 +21,8 @@ from factor_bank.engine.quantiles import quantile_spread
 def _known_factor(name: str) -> bool:
     if "__" in name:
         base, _, tr = name.partition("__")
-        return base in all_factor_names() and tr in TRANSFORMS
-    return name in all_factor_names()
+        return (base in all_factor_names() or base in custom_names()) and tr in TRANSFORMS
+    return name in all_factor_names() or name in custom_names()
 
 
 def evaluate(

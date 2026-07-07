@@ -56,6 +56,12 @@
         Factor <span id="selected-factor" style="color: var(--primary); font-family: ui-monospace, monospace; text-transform: none; letter-spacing: 0;"></span>
       </div>
       <div id="factor-catalog"></div>
+      <div class="custom-upload-row">
+        <input type="text" id="custom-name" placeholder="name (e.g. my_signal)" />
+        <input type="file" id="custom-file" accept=".csv" />
+        <button class="save-scan-btn" id="custom-upload-btn">＋ Upload custom factor</button>
+        <span class="status" id="custom-upload-status"></span>
+      </div>
       <div class="compute-row">
         <div class="status" id="status">Pick one factor and click Compute.</div>
         <div class="compute-actions">

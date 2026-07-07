@@ -5,11 +5,12 @@ import math
 import traceback
 
 import pandas as pd
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from factor_bank.config import ALLOWED_HORIZONS, ALLOWED_QUANTILES, get_settings
+from factor_bank.data import custom as custom_mod
 from factor_bank.data import enriched as enriched_mod
 from factor_bank.data import sharadar as sharadar_mod
 from factor_bank.data import store as store_mod
@@ -54,8 +55,15 @@ def health():
 
 @router.get("/factors")
 def list_factors():
+    groups = dict(FACTOR_CATALOG)
+    custom_group = {
+        rec["name"]: f"custom upload ({rec['n_rows']} rows, {rec['date_min']}→{rec['date_max']})"
+        for rec in store_mod.list_custom()
+    }
+    if custom_group:
+        groups["Custom"] = custom_group
     return {
-        "groups": FACTOR_CATALOG,
+        "groups": groups,
         "horizons": list(ALLOWED_HORIZONS),
         "quantile_options": list(ALLOWED_QUANTILES),
         "date_floor": get_settings().date_floor,
@@ -132,6 +140,7 @@ def warmup():
     sharadar_mod.clear_memo()
     universe_mod.clear_memo()
     panel_mod.clear_memo()
+    custom_mod.clear_memo()
     try:
         tickers = load_tickers()
         events = load_sp500_events()
@@ -192,3 +201,18 @@ def get_scan(scan_id: str):
 @router.delete("/scans/{scan_id}")
 def delete_scan(scan_id: str):
     return {"deleted": store_mod.delete_scan(scan_id)}
+
+
+@router.post("/custom-factors", status_code=201)
+async def upload_custom_factor(name: str = Form(...), file: UploadFile = File(...)):
+    raw = await file.read()
+    try:
+        result = custom_mod.validate_and_store(name, raw)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    return result
+
+
+@router.delete("/custom-factors/{name}")
+def delete_custom_factor(name: str):
+    return {"deleted": custom_mod.delete_custom_factor(name)}

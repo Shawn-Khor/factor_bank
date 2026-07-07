@@ -104,6 +104,17 @@ input[type="date"]:focus, select:focus {
   background: var(--primary); border-color: var(--primary); color: white;
 }
 
+/* Custom factor upload */
+.custom-upload-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);
+}
+.custom-upload-row input[type="text"] {
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px;
+  font-size: 13px; font-family: inherit; color: var(--text); width: 200px;
+}
+.custom-upload-row input[type="file"] { font-size: 12px; max-width: 220px; }
+
 /* Compute button */
 .compute-row {
   display: flex; justify-content: space-between; align-items: center;

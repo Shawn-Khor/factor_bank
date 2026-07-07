@@ -274,6 +274,49 @@ function renderCumulativeChart(series) {
   });
 }
 
+// ─── Custom factor upload ──────────────────────────────────────────────────
+const customUploadBtn = document.getElementById("custom-upload-btn");
+if (customUploadBtn) {
+  customUploadBtn.addEventListener("click", uploadCustomFactor);
+}
+
+async function uploadCustomFactor() {
+  const nameEl = document.getElementById("custom-name");
+  const fileEl = document.getElementById("custom-file");
+  const statusEl = document.getElementById("custom-upload-status");
+  const name = nameEl.value.trim();
+  const file = fileEl.files[0];
+  if (!name || !file) {
+    statusEl.textContent = "Provide a name and a CSV file.";
+    statusEl.className = "status error";
+    return;
+  }
+  const formData = new FormData();
+  formData.append("name", name);
+  formData.append("file", file);
+  statusEl.textContent = "Uploading…";
+  statusEl.className = "status";
+  try {
+    const res = await fetch("/api/custom-factors", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      statusEl.textContent = data.error || `HTTP ${res.status}`;
+      statusEl.className = "status error";
+      return;
+    }
+    statusEl.textContent =
+      `Uploaded '${data.name}': ${data.n_rows} rows, ${data.n_tickers} tickers ` +
+      `(${data.date_min} → ${data.date_max}).`;
+    statusEl.className = "status";
+    nameEl.value = "";
+    fileEl.value = "";
+    await loadCatalog(); // re-fetch catalog so the Custom pill appears
+  } catch (err) {
+    statusEl.textContent = err.message || String(err);
+    statusEl.className = "status error";
+  }
+}
+
 // ─── Saved scans ───────────────────────────────────────────────────────────
 function getEvaluateConfig() {
   return {
