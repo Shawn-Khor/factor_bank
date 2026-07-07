@@ -23,6 +23,89 @@ function metricClass(v, posIsGood = true) {
   return "";
 }
 
+// ─── Badges ──────────────────────────────────────────────────────────────────
+function badgeHtml(cls, text) {
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+
+// ─── CSV export ──────────────────────────────────────────────────────────────
+function tableToCsv(tableEl) {
+  if (!tableEl) return "";
+  const escapeCell = text => {
+    const s = text == null ? "" : String(text);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = Array.from(tableEl.querySelectorAll("tr"));
+  return rows
+    .map(row => Array.from(row.children).map(cell => escapeCell(cell.textContent.trim())).join(","))
+    .join("\r\n");
+}
+
+function downloadCsv(filename, csv) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Binds a "⬇ CSV" button (by id) to export whatever <table> currently lives
+// inside a container (by id). The table is resolved at CLICK time (not bind
+// time) so the button always exports the most recently rendered table, even
+// after a re-render has replaced the container's contents.
+function bindCsvExport(buttonId, containerId, filename) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const container = document.getElementById(containerId);
+    const table = container && container.querySelector("table");
+    if (!table) return;
+    const name = typeof filename === "function" ? filename() : filename;
+    downloadCsv(name, tableToCsv(table));
+  });
+}
+
+// ─── Metric glossary + tooltips ─────────────────────────────────────────────
+// Keyed by the lowercased label text as it appears in the UI (th / .metric-label
+// elements). A few entries carry aliases where different tabs word the same
+// concept slightly differently (e.g. "Horizon" vs "Chosen Horizon").
+const GLOSSARY = {
+  "ic (pearson)": "Mean cross-sectional Pearson correlation between the factor value and the forward return — captures linear predictive power; sensitive to outliers.",
+  "ic": "Mean cross-sectional Pearson correlation between the factor value and the forward return — captures linear predictive power; sensitive to outliers.",
+  "rank ic": "Mean cross-sectional Spearman correlation between factor rank and forward-return rank — captures monotonic predictive power and is more robust to outliers than IC.",
+  "std ic": "Standard deviation of the daily IC series — higher means the factor's edge is noisier and less consistent over time.",
+  "ic ir": "Information ratio: mean(Rank IC) divided by std(Rank IC) — a risk-adjusted measure of predictive power; above 0.3 is good, above 0.5 is excellent.",
+  "% positive": "Fraction of dates where Rank IC is positive — above roughly 55% suggests the factor's direction is consistent over time.",
+  "t-stat": "t-statistic testing whether the mean Rank IC is significantly different from zero.",
+  "p-value": "Two-tailed probability of seeing this t-stat (or a more extreme one) if the true mean IC were zero — smaller is stronger evidence of a real effect.",
+  "q-value": "The p-value after Benjamini-Hochberg false-discovery-rate correction for testing many candidates at once — guards against multiple-testing false positives.",
+  "n obs": "Number of dates with a valid, non-missing cross-sectional signal that went into this metric.",
+  "mi": "Mutual information — quantifies any statistical dependence, linear or non-linear, between the factor and the forward return (in nats); zero only if truly independent.",
+  "dcor": "Distance correlation — like Pearson correlation but detects any dependence, not just linear or monotone; bounded in [0, 1] and zero only if independent.",
+  "composite rank": "Overall rank of the feature across the screening's combined criteria (IC, MI, dCor, consistency) — 1 is the best-ranked feature.",
+  "consistent": "Whether the factor's direction agrees across the horizons/folds tested rather than flipping sign — a stability check, not a strength measure.",
+  "nl gain": "Whether a non-linear measure (MI or dCor) meaningfully exceeds what the linear IC alone would predict — flags factors that may have exploitable non-linear structure.",
+  "nonlinear gain": "Whether a non-linear measure (MI or dCor) meaningfully exceeds what the linear IC alone would predict — flags factors that may have exploitable non-linear structure.",
+  "holdout rank ic": "Rank IC recomputed on the holdout (out-of-sample) date range after the candidate was selected on the training range — the key check against overfitting.",
+  "verdict": "Overall strength label (Strong / Moderate / Weak / Insignificant) assigned from the factor's Rank IC, IC IR, and statistical significance.",
+  "mean ic": "Mean cross-sectional IC for the feature at its chosen horizon.",
+  "chosen horizon": "The forward-return horizon (in trading sessions) selected for this feature during screening.",
+  "horizon": "The forward-return horizon (in trading sessions) selected for this feature during screening.",
+};
+
+function applyTooltips(scopeEl) {
+  const root = scopeEl || document;
+  root.querySelectorAll("th, .metric-label").forEach(el => {
+    const key = el.textContent.trim().toLowerCase();
+    const def = GLOSSARY[key];
+    if (def) el.title = def;
+  });
+}
+
 // ─── Job polling + heatmap helpers (ML Eval) ────────────────────────────────
 async function pollJob(jobId, onProgress, intervalMs = 2000) {
   for (;;) {

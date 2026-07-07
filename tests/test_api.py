@@ -78,6 +78,8 @@ def test_static_index_served(client):
     assert "Factor Bank" in r.text
     assert "mleval.js" in r.text
     assert "lab.js" in r.text
+    assert "?v=2" in r.text
+    assert "?v=1" not in r.text
     assert client.get("/js/mleval.js").status_code == 200
     assert client.get("/js/lab.js").status_code == 200
 

@@ -194,7 +194,26 @@ input[type="date"]:focus, select:focus {
 .badge.MODERATE { background: #fef3c7; color: #92400e; }
 .badge.WEAK { background: #fee2e2; color: #991b1b; }
 .badge.INSIGNIFICANT { background: #e5e7eb; color: #374151; }
+.badge.ok { background: #d1fae5; color: #065f46; }
+.badge.info { background: #fef3c7; color: #92400e; }
 .quality-panel { margin-top: 12px; font-size: 12px; color: var(--muted); }
+
+/* CSV export buttons in card titles */
+.csv-btn {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.csv-btn:hover { background: var(--primary-bg); border-color: var(--primary); }
 
 /* ML Eval: matrix / heatmap tables */
 .matrix-table {

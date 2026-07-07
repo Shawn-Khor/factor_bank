@@ -203,6 +203,7 @@ function renderResults(data) {
 
   renderQuantileChart(data.quantile_means, data.n_quantiles);
   renderCumulativeChart(data.longshort_cumulative);
+  applyTooltips(document.getElementById("results"));
 }
 
 function renderQuantileChart(quantileMeans, nQuantiles) {

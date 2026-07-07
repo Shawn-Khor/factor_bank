@@ -148,6 +148,7 @@ function renderLabResults(result, ctx) {
   `;
   renderLabLeaderboard(result.leaderboard || [], ctx);
   renderLabSkipped(result.n_skipped || 0, result.skipped || []);
+  applyTooltips(document.getElementById("lab-results"));
 }
 
 function renderLabLeaderboard(rows, ctx) {
@@ -225,6 +226,9 @@ window.fbRestore.lab = function (config) {
   if (labState.catalog) renderLabHorizons(); // idempotent — reflects labState.horizon
   runLabScreen();
 };
+
+// ─── CSV export ────────────────────────────────────────────────────────────
+bindCsvExport("lab-leaderboard-csv", "lab-leaderboard", "lab_leaderboard.csv");
 
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadLabCatalog();

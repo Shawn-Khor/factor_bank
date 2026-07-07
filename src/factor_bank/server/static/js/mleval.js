@@ -168,6 +168,7 @@ function renderMlResults(result) {
   renderMiHeatmap(result.mutual_info);
   renderRedundancy(result.redundancy);
   renderMdi(result.mdi);
+  applyTooltips(document.getElementById("ml-results"));
 }
 
 const SCREENING_COLS = [
@@ -177,9 +178,9 @@ const SCREENING_COLS = [
   { key: "mi_score", label: "MI", format: v => fmt(v, 4) },
   { key: "mi_pvalue_adj", label: "MI p (adj)", format: v => fmt(v, 4) + pStar(v) },
   { key: "dcor", label: "dCor", format: v => fmt(v, 4) },
-  { key: "composite_rank", label: "Rank", format: v => (v == null ? "—" : String(v)) },
-  { key: "consistent", label: "Consistent", format: v => (v ? "✓" : "—") },
-  { key: "nonlinear_gain", label: "Nonlinear gain", format: v => (v ? "✓" : "—") },
+  { key: "composite_rank", label: "Composite Rank", format: v => (v == null ? "—" : String(v)) },
+  { key: "consistent", label: "Consistent", format: v => (v ? badgeHtml("ok", "✓ Yes") : "—") },
+  { key: "nonlinear_gain", label: "NL Gain", format: v => (v ? badgeHtml("info", "✓ Yes") : "—") },
 ];
 
 function renderScreening(records, meta) {
@@ -200,12 +201,22 @@ function renderScreening(records, meta) {
     }</tr>`).join("")
   }</tbody></table></div>`;
 
-  const warnings = meta && meta.warnings;
-  const warningsHtml = (warnings && warnings.length > 0)
-    ? `<div class="ml-warnings">${warnings.map(w => `<div>⚠ ${w}</div>`).join("")}</div>`
-    : "";
+  el.innerHTML = tableHtml;
 
-  el.innerHTML = tableHtml + warningsHtml;
+  // Built with createElement/textContent (not innerHTML) so warning text —
+  // which can originate from backend-computed data quality messages — is
+  // never parsed as HTML.
+  const warnings = meta && meta.warnings;
+  if (warnings && warnings.length > 0) {
+    const warnEl = document.createElement("div");
+    warnEl.className = "ml-warnings";
+    for (const w of warnings) {
+      const line = document.createElement("div");
+      line.textContent = `⚠ ${w}`;
+      warnEl.appendChild(line);
+    }
+    el.appendChild(warnEl);
+  }
 }
 
 function renderMiHeatmap(records) {
@@ -309,6 +320,11 @@ window.fbRestore.mleval = function (config) {
   updateMlCount();
   runMlEval();
 };
+
+// ─── CSV export ────────────────────────────────────────────────────────────
+bindCsvExport("ml-screening-csv", "ml-screening", "ml_screening.csv");
+bindCsvExport("ml-heatmap-csv", "ml-heatmap", "ml_mutual_information.csv");
+bindCsvExport("ml-redundancy-csv", "ml-redundancy", "ml_redundancy.csv");
 
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadMlCatalog();

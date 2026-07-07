@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Factor Bank</title>
-<link rel="stylesheet" href="/fb.css?v=1">
+<link rel="stylesheet" href="/fb.css?v=2">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
@@ -167,17 +167,17 @@
     <!-- Results -->
     <div id="ml-results" class="hidden">
       <div class="card">
-        <div class="card-title">Screening summary</div>
+        <div class="card-title">Screening summary <button class="csv-btn" id="ml-screening-csv" title="Download this table as CSV">⬇ CSV</button></div>
         <div id="ml-screening"></div>
       </div>
 
       <div class="card">
-        <div class="card-title">Mutual information (feature × horizon)</div>
+        <div class="card-title">Mutual information (feature × horizon) <button class="csv-btn" id="ml-heatmap-csv" title="Download this table as CSV">⬇ CSV</button></div>
         <div id="ml-heatmap"></div>
       </div>
 
       <div class="card">
-        <div class="card-title">Redundancy matrix</div>
+        <div class="card-title">Redundancy matrix <button class="csv-btn" id="ml-redundancy-csv" title="Download this table as CSV">⬇ CSV</button></div>
         <div id="ml-redundancy"></div>
       </div>
 
@@ -242,7 +242,7 @@
     <!-- Results -->
     <div id="lab-results" class="hidden">
       <div class="card">
-        <div class="card-title">Leaderboard</div>
+        <div class="card-title">Leaderboard <button class="csv-btn" id="lab-leaderboard-csv" title="Download this table as CSV">⬇ CSV</button></div>
         <div class="meta-bar" id="lab-meta"></div>
         <div style="height: 12px"></div>
         <div id="lab-leaderboard"></div>
@@ -262,10 +262,10 @@
   </main>
 </div>
 
-<script src="/js/common.js?v=1"></script>
-<script src="/js/evaluate.js?v=1"></script>
-<script src="/js/mleval.js?v=1"></script>
-<script src="/js/lab.js?v=1"></script>
-<script src="/js/scans.js?v=1"></script>
+<script src="/js/common.js?v=2"></script>
+<script src="/js/evaluate.js?v=2"></script>
+<script src="/js/mleval.js?v=2"></script>
+<script src="/js/lab.js?v=2"></script>
+<script src="/js/scans.js?v=2"></script>
 </body>
 </html>
