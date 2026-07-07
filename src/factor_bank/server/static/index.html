@@ -18,7 +18,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="evaluate">Evaluate</button>
     <button class="tab" data-tab="mleval">ML Eval</button>
-    <button class="tab" data-tab="lab" disabled title="Plan C">Factor Lab</button>
+    <button class="tab" data-tab="lab">Factor Lab</button>
     <button class="tab" data-tab="scans">Scans</button>
   </nav>
 
@@ -187,7 +187,72 @@
       </div>
     </div>
   </main>
-  <main id="tab-lab" class="tab-content"></main>
+  <main id="tab-lab" class="tab-content">
+    <div class="card lab-banner">
+      Grid-mined results are in-sample until validated — trust the holdout column.
+    </div>
+
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <label for="lab-from">From</label>
+          <input type="date" id="lab-from" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label for="lab-to">To</label>
+          <input type="date" id="lab-to" min="2018-01-01" />
+        </div>
+        <div class="ctrl-group">
+          <label>Forward return (trading sessions)</label>
+          <div class="horizon-row" id="lab-horizon-row"></div>
+        </div>
+        <div class="ctrl-group">
+          <label for="lab-top-k">Top K</label>
+          <input type="number" id="lab-top-k" min="1" max="100" value="30" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Candidate grid + run -->
+    <div class="card">
+      <div class="card-title">
+        Candidate grid <span id="lab-candidates-count" style="color: var(--primary); font-family: ui-monospace, monospace; text-transform: none; letter-spacing: 0;"></span>
+      </div>
+      <div class="compute-row">
+        <div class="status" id="lab-status">Pick a horizon and date range, then click Run.</div>
+        <div class="compute-actions">
+          <button class="save-scan-btn" id="save-scan-lab">Save scan</button>
+          <button class="compute-btn" id="lab-run">Run</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="lab-progress" class="card hidden">
+      <div class="card-title">Progress</div>
+      <div class="progress-line">
+        <span class="spinner"></span>
+        <span id="lab-progress-text">Queued…</span>
+        <span id="lab-elapsed" class="ml-elapsed"></span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="lab-results" class="hidden">
+      <div class="card">
+        <div class="card-title">Leaderboard</div>
+        <div class="meta-bar" id="lab-meta"></div>
+        <div style="height: 12px"></div>
+        <div id="lab-leaderboard"></div>
+        <details class="quality-panel hidden" id="lab-skipped-details">
+          <summary id="lab-skipped-summary"></summary>
+          <div id="lab-skipped-body"></div>
+        </details>
+      </div>
+    </div>
+  </main>
   <main id="tab-scans" class="tab-content">
     <div class="card">
       <div class="card-title">Saved scans</div>
@@ -200,6 +265,7 @@
 <script src="/js/common.js?v=1"></script>
 <script src="/js/evaluate.js?v=1"></script>
 <script src="/js/mleval.js?v=1"></script>
+<script src="/js/lab.js?v=1"></script>
 <script src="/js/scans.js?v=1"></script>
 </body>
 </html>

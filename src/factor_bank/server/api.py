@@ -21,6 +21,9 @@ from factor_bank.data.universe import get_spells
 from factor_bank.engine import panel as panel_mod
 from factor_bank.engine.catalog import FACTOR_CATALOG
 from factor_bank.engine.evaluate import evaluate
+from factor_bank.engine.factors import TRANSFORMS
+from factor_bank.lab.grid import candidate_grid
+from factor_bank.lab.screen import screen as lab_screen
 from factor_bank.ml.bridge import ML_HORIZONS, MAX_FACTORS, MODE_PERMUTATIONS, run_ml_eval
 from factor_bank.server.jobs import JOBS
 
@@ -128,6 +131,37 @@ def submit_ml_eval(req: MLEvalRequest):
         progress=progress,
     )))
     return {"job_id": job_id}
+
+
+class LabScreenRequest(BaseModel):
+    horizon: int
+    from_date: str
+    to_date: str
+    top_k: int = 30
+
+
+@router.post("/lab/screen", status_code=202)
+def submit_lab_screen(req: LabScreenRequest):
+    # Fail fast on bounds BEFORE queueing.
+    if req.horizon not in ALLOWED_HORIZONS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"horizon must be one of {list(ALLOWED_HORIZONS)}"},
+        )
+    if not (1 <= req.top_k <= 100):
+        return JSONResponse(status_code=400, content={"error": "top_k must be between 1 and 100"})
+
+    # Same memo-friendly pattern as /api/ml-eval: no pinned frames, so
+    # get_window's TTL memo can engage across jobs.
+    job_id = JOBS.submit(lambda progress: _sanitize(lab_screen(
+        req.horizon, req.from_date, req.to_date, top_k=req.top_k, progress=progress,
+    )))
+    return {"job_id": job_id}
+
+
+@router.get("/lab/candidates")
+def get_lab_candidates():
+    return {"n_candidates": len(candidate_grid()), "transforms": list(TRANSFORMS)}
 
 
 @router.post("/warmup")

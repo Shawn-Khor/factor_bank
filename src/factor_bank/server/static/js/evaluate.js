@@ -356,5 +356,34 @@ window.fbRestore.evaluate = function (config) {
   compute();
 };
 
+// ─── Cross-tab entry point (Factor Lab "Open in Evaluate") ────────────────
+// `factor` may be a generated "base__transform" name from the lab grid that
+// isn't one of the catalog pills — there's nothing to highlight, so we set
+// the state directly and surface the name via the status line instead.
+window.fbOpenInEvaluate = function (factor, from_date, to_date, horizon) {
+  if (from_date) {
+    document.getElementById("from-date").value = from_date;
+    state.fromDate = from_date;
+  }
+  if (to_date) {
+    document.getElementById("to-date").value = to_date;
+    state.toDate = to_date;
+  }
+  if (horizon) {
+    state.horizon = horizon;
+    if (state.catalog) renderHorizons();
+  }
+  state.selectedFactor = factor || null;
+  document.querySelectorAll(".factor-pill").forEach(p => {
+    p.classList.toggle("active", p.textContent === factor);
+  });
+  document.getElementById("selected-factor").textContent = factor ? `· ${factor}` : "";
+  document.getElementById("compute-btn").disabled = !factor;
+  switchTab("evaluate");
+  if (!factor) return;
+  setStatus(`Opened '${factor}' from Factor Lab. Running…`);
+  compute();
+};
+
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadCatalog();

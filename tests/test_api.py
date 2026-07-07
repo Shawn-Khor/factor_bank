@@ -77,7 +77,9 @@ def test_static_index_served(client):
     assert r.status_code == 200
     assert "Factor Bank" in r.text
     assert "mleval.js" in r.text
+    assert "lab.js" in r.text
     assert client.get("/js/mleval.js").status_code == 200
+    assert client.get("/js/lab.js").status_code == 200
 
 
 def test_warmup_clears_memos_and_reloads(client, monkeypatch):
@@ -147,6 +149,65 @@ def test_ml_eval_validates_before_submit(client):
         "from_date": "2019-01-01", "to_date": "2020-01-01",
     })
     assert r.status_code == 400
+
+
+def test_lab_screen_flow(client, monkeypatch):
+    import factor_bank.server.api as api
+
+    def fake_screen(horizon, from_date, to_date, top_k=30, progress=None, **kw):
+        assert kw.get("enriched") is None and kw.get("spells") is None
+        progress("stage 1: 1/1 candidates")
+        return {
+            "leaderboard": [
+                {"candidate": "pe__zscore_63d", "train_rank_ic": 0.05, "ic_ir": 1.2,
+                 "q_value": 0.02, "mi": 0.01, "dcor": 0.1,
+                 "holdout_rank_ic": 0.04, "sign_flip": False},
+            ],
+            "n_candidates": 1, "n_skipped": 0, "skipped": [],
+            "split": {"train_dates": 100, "holdout_dates": 40},
+            "meta": {"horizon": horizon, "from_date": from_date, "to_date": to_date, "top_k": top_k},
+        }
+
+    monkeypatch.setattr(api, "lab_screen", fake_screen)
+    r = client.post("/api/lab/screen", json={
+        "horizon": 21, "from_date": "2019-01-01", "to_date": "2020-01-01",
+    })
+    assert r.status_code == 202
+    jid = r.json()["job_id"]
+    import time
+    for _ in range(100):
+        rec = client.get(f"/api/jobs/{jid}").json()
+        if rec["status"] in ("done", "error"):
+            break
+        time.sleep(0.02)
+    assert rec["status"] == "done"
+    assert rec["result"]["meta"]["horizon"] == 21
+    assert rec["result"]["leaderboard"][0]["candidate"] == "pe__zscore_63d"
+
+
+def test_lab_screen_validates_before_submit(client):
+    r = client.post("/api/lab/screen", json={
+        "horizon": 11, "from_date": "2019-01-01", "to_date": "2020-01-01",  # 11 not a horizon
+    })
+    assert r.status_code == 400 and "horizon" in r.json()["error"]
+
+    r = client.post("/api/lab/screen", json={
+        "horizon": 21, "from_date": "2019-01-01", "to_date": "2020-01-01", "top_k": 0,
+    })
+    assert r.status_code == 400 and "top_k" in r.json()["error"]
+
+    r = client.post("/api/lab/screen", json={
+        "horizon": 21, "from_date": "2019-01-01", "to_date": "2020-01-01", "top_k": 101,
+    })
+    assert r.status_code == 400 and "top_k" in r.json()["error"]
+
+
+def test_lab_candidates_shape(client):
+    r = client.get("/api/lab/candidates")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["n_candidates"] > 0
+    assert isinstance(body["transforms"], list) and len(body["transforms"]) == 8
 
 
 def test_warmup_clears_panel_memo(client, monkeypatch):
