@@ -29,10 +29,33 @@ def make_fs(region: str | None = None):
 
 
 def _snapshot_parquet_path(fs, prefix: str) -> str:
+    """Resolve the current file under a `latest_snapshot/` prefix.
+
+    Today this prefix holds exactly one file, so any tie-break rule is a
+    no-op in practice. But nothing upstream guarantees that stays true, so:
+    when there's more than one candidate, prefer whichever has the newest
+    `fs.info(f)["LastModified"]` (the file actually most recently written) —
+    guarded by try/except since not every S3-compatible backend returns
+    `LastModified`, and a network hiccup shouldn't be fatal here. If there's
+    only one candidate, or the LastModified lookup fails for any reason,
+    fall back to `sorted(files)[-1]` — the lexicographically *last* (newest,
+    for date-stamped filenames) path, which is deterministic and doesn't
+    require any extra calls. (The previous fallback, `sorted(files)[0]`, was
+    a bug: it picked the lexicographically *first* — i.e. oldest — file.)
+    """
     files = [x for x in fs.ls(prefix) if x.endswith(".parquet")]
     if not files:
         raise FileNotFoundError(f"No parquet under {prefix}")
-    return sorted(files)[0]
+    if len(files) > 1:
+        try:
+            dated = [(fs.info(f)["LastModified"], f) for f in files]
+            return max(dated, key=lambda t: t[0])[1]
+        except Exception as e:
+            logger.warning(
+                "_snapshot_parquet_path: LastModified lookup failed (%s); "
+                "falling back to sorted(files)[-1] for %s", e, prefix,
+            )
+    return sorted(files)[-1]
 
 
 def load_sp500_events(fs=None) -> pd.DataFrame:

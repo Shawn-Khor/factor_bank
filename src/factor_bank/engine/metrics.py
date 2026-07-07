@@ -58,7 +58,15 @@ def cross_sectional_metrics(
     the `winsorize` / `1-winsorize` quantiles) when `winsorize` is set;
     `ic_raw` always keeps the unclipped Pearson value for comparison. Rank IC
     is unaffected by winsorization since ranks are clip-invariant.
+
+    `winsorize` must be None or in [0, 0.5) — at p >= 0.5 the `p` / `1-p`
+    clip quantiles cross (lo > hi), and `DataFrame.clip` on crossed bounds
+    silently snaps every value to one of the two bounds rather than raising,
+    which can sign-flip the reported IC with no warning.
     """
+    if winsorize is not None and not (0 <= winsorize < 0.5):
+        raise ValueError(f"winsorize must be None or in [0, 0.5), got {winsorize}")
+
     from scipy import stats
 
     F = factor_matrix

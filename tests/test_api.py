@@ -1,3 +1,6 @@
+import json
+import time
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -6,14 +9,24 @@ import factor_bank.server.api as api_mod
 from factor_bank.data import enriched as enriched_mod
 from factor_bank.data import sharadar as sharadar_mod
 from factor_bank.data import universe as universe_mod
+from factor_bank.engine import panel as panel_mod
 from factor_bank.server.app import create_app
 
 
 @pytest.fixture
 def client(synthetic_market, monkeypatch):
+    # /api/evaluate no longer pins enriched/spells (routes through
+    # engine.panel.get_window so repeat requests hit its TTL memo) — so tests
+    # inject data the same way tests/test_panel.py does: monkeypatch the real
+    # loaders panel.py calls, not a pinning indirection in api.py (removed,
+    # now dead). clear_memo() first is required: the module-level memo dict
+    # persists across tests, and every client-based test here uses the same
+    # (from_date, to_date, horizon) — a stale memo entry from a prior test
+    # would otherwise leak its enriched/spells into this one.
     enriched, spells = synthetic_market
-    monkeypatch.setattr(api_mod, "_get_enriched", lambda: enriched)
-    monkeypatch.setattr(api_mod, "_get_spells", lambda: spells)
+    panel_mod.clear_memo()
+    monkeypatch.setattr(panel_mod, "load_enriched", lambda: enriched)
+    monkeypatch.setattr(panel_mod, "get_spells", lambda: spells)
     return TestClient(create_app())
 
 
@@ -25,14 +38,41 @@ def scans_client(synthetic_market, monkeypatch, tmp_path):
     # the real disk-cache/S3 path unmocked and are fast only because that cache is
     # normally warm.
     enriched, spells = synthetic_market
-    monkeypatch.setattr(api_mod, "_get_enriched", lambda: enriched)
-    monkeypatch.setattr(api_mod, "_get_spells", lambda: spells)
+    panel_mod.clear_memo()
+    monkeypatch.setattr(panel_mod, "load_enriched", lambda: enriched)
+    monkeypatch.setattr(panel_mod, "get_spells", lambda: spells)
     monkeypatch.setenv("FB_CACHE_DIR", str(tmp_path))
     return TestClient(create_app())
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"ok": True}
+    body = client.get("/api/health").json()
+    assert body["ok"] is True
+    # No FB_CACHE_DIR override in this fixture -> whatever the real cache dir
+    # holds; just assert the shape, not a specific value.
+    assert "data_cache_age_hours" in body
+    assert body["jobs_queued"] == 0 and body["jobs_running"] == 0
+
+
+def test_health_reports_cache_age_from_newest_meta_json(scans_client):
+    from factor_bank.config import get_settings
+
+    obj_dir = get_settings().cache_dir / "objects"
+    obj_dir.mkdir(parents=True, exist_ok=True)
+    older = time.time() - 3600 * 10
+    newer = time.time() - 3600 * 2
+    (obj_dir / "a.json").write_text(json.dumps({"fetched_at": older}))
+    (obj_dir / "b.json").write_text(json.dumps({"fetched_at": newer}))
+
+    body = scans_client.get("/api/health").json()
+    assert body["ok"] is True
+    assert abs(body["data_cache_age_hours"] - 2.0) < 0.05  # newest wins, not oldest
+    assert body["jobs_queued"] == 0 and body["jobs_running"] == 0
+
+
+def test_health_cache_age_none_when_no_objects(scans_client):
+    body = scans_client.get("/api/health").json()
+    assert body["data_cache_age_hours"] is None
 
 
 def test_factors_catalog(client):
@@ -60,6 +100,18 @@ def test_evaluate_validation_400(client):
     })
     assert r.status_code == 400
     assert "floor" in r.json()["error"]
+
+
+def test_evaluate_winsorize_out_of_range_400(client):
+    # winsorize=0.9 (p > 0.5) crosses the lo/hi clip quantiles, silently
+    # corrupting Pearson IC (F2 in the correctness scan) — must be rejected
+    # end-to-end, not just accepted and produce garbage.
+    r = client.post("/api/evaluate", json={
+        "factor": "pe", "from_date": "2019-01-01", "to_date": "2020-01-01",
+        "horizon": 21, "n_quantiles": 5, "winsorize": 0.9,
+    })
+    assert r.status_code == 400
+    assert "winsorize" in r.json()["error"]
 
 
 def test_evaluate_winsorize_null_matches_raw(client):

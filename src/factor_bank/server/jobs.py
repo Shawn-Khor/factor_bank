@@ -62,6 +62,15 @@ class JobStore:
                     n_ahead += 1
             return dict(rec, n_ahead=n_ahead)
 
+    def counts(self) -> dict:
+        """Queue-depth snapshot for /api/health — no S3/disk I/O, just a scan
+        of the in-memory job dict, so it's safe to call on every health
+        check without adding load."""
+        with self._lock:
+            queued = sum(1 for r in self._jobs.values() if r["status"] == "queued")
+            running = sum(1 for r in self._jobs.values() if r["status"] == "running")
+        return {"queued": queued, "running": running}
+
     def _evict(self) -> None:
         # Only finished jobs are evicted, oldest first (lock held by caller).
         while len(self._jobs) > self._max:

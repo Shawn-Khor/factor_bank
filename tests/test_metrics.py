@@ -48,6 +48,23 @@ def test_winsorize_tames_outlier_pearson():
     assert m["ic"] > m["ic_raw"]
 
 
+def test_winsorize_out_of_range_rejected():
+    """F2: winsorize >= 0.5 crosses the lo/hi clip quantiles and silently
+    corrupts Pearson IC via DataFrame.clip's snap-to-crossed-bounds behavior
+    — must be rejected outright, not accepted and produce garbage."""
+    F, R = _perfect_signal()
+    for bad in (0.5, 0.9, 1.0, -0.01, -1.0):
+        try:
+            cross_sectional_metrics(F, R, winsorize=bad)
+            raise AssertionError(f"winsorize={bad} should have raised ValueError")
+        except ValueError as e:
+            assert "winsorize" in str(e)
+    # Boundary and disabled cases must NOT raise.
+    cross_sectional_metrics(F, R, winsorize=0.0)
+    cross_sectional_metrics(F, R, winsorize=0.499)
+    cross_sectional_metrics(F, R, winsorize=None)
+
+
 def test_winsorize_xs_row_wise():
     F = pd.DataFrame([[1.0, 2.0, 3.0, 4.0, 100.0]])
     W = winsorize_xs(F, p=0.2)

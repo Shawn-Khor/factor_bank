@@ -219,6 +219,66 @@ transform vocabulary it's built from).
   outbound internet from the browser, metrics still render but the charts
   silently fail (`Chart is not defined`).
 
+## Operations
+
+- **Process supervision.** Run under the systemd unit shipped at
+  `deploy/factor-bank.service` rather than a bare `nohup`/shell job — it
+  gives you restart-on-crash, logs in `journalctl` instead of a temp file
+  that vanishes on reboot, and (with `loginctl enable-linger <user>`, once)
+  survival across reboots for a per-user unit. `systemctl --user status
+  factor-bank` / `journalctl --user -u factor-bank -f` are the first two
+  commands to reach for when something looks wrong; `journalctl --user -u
+  factor-bank -p warning` surfaces the stale-cache/S3 warnings below without
+  scrolling past the per-request access log.
+- **Stale cache on S3 failure.** `data/disk_cache.py` treats *any* exception
+  from `fs.info()` (expired/rotated AWS creds, `AccessDenied`, network
+  unreachable — all indistinguishable at that call site) as "S3 is
+  unreachable" and serves the last good local parquet, logging a WARNING
+  rather than failing the request. This is deliberate (uptime over
+  freshness) — it means credential rot doesn't hard-fail anything for as
+  long as the local TTL cache stays populated, so `/api/health`'s
+  `data_cache_age_hours` (see below) plus the journald warning log are the
+  only proactive signals that the data is actually stale; nothing pages
+  anyone. If the local cache is empty (fresh box, or a cleared
+  `FB_CACHE_DIR`) and creds are bad, `load_enriched()` raises and
+  `/api/evaluate`/`/api/warmup` surface a 500 with a traceback instead.
+- **Single-worker job queue + stuck-job recovery.** `/api/ml-eval` and
+  `/api/lab/screen` run on one background worker by design (the enriched
+  frame dominates RAM, so heavy runs are serialized rather than
+  parallelized — see `server/jobs.py`). There is no per-job timeout or
+  cancel API today, so one wedged job blocks every job submitted after it
+  (`/api/jobs/{id}`'s `n_ahead` keeps growing for everyone else, while
+  `/api/evaluate` — which doesn't go through the job queue — keeps working
+  normally, which can make a stuck queue easy to miss). `/api/health`'s
+  `jobs_queued`/`jobs_running` fields are the fastest way to notice this
+  from a script or a glance. The only recovery today is restarting the
+  process: `systemctl --user restart factor-bank`.
+- **Health endpoint.** `GET /api/health` returns `{ok, data_cache_age_hours,
+  jobs_queued, jobs_running}` — `data_cache_age_hours` is the age of the
+  newest successfully fetched S3 object under `<cache_dir>/objects` (`null`
+  if the cache is empty), computed from local meta JSON only (no S3 calls,
+  so it stays cheap to poll).
+- **T+h survivorship in long/short economics.** Both the quantile-bucket
+  return calculation and the IC battery require a ticker to have prices at
+  *both* T and T+horizon; the last `horizon` sessions before an S&P 500
+  deletion never contribute a forward return, since that final leg would
+  need a post-deletion price the pivot doesn't have. This is a mild,
+  horizon-scaling survivorship tilt (not a code bug) — worth remembering
+  when comparing long-horizon (42D/63D) results against a venue that handles
+  deletions differently.
+- **De-overlapped long/short economics (this version).** `longshort_stats`
+  and `longshort_cumulative` from `/api/evaluate` no longer compound
+  overlapping horizon-session returns as if each were earned in a single
+  day. At `horizon=1` nothing changes. At `horizon > 1`, `total_return` and
+  `annualized_sharpe` are now computed on a properly de-overlapped basis
+  (each horizon-session spread converted to its per-session-equivalent daily
+  rate before compounding; Sharpe computed on the non-overlapping
+  `::horizon` subsample) — **these numbers will differ substantially from
+  the legacy alpha-discovery dashboard**, which does not de-overlap and
+  therefore overstates both total return and Sharpe roughly `horizon`-fold
+  at horizon > 1. Do not compare the two tools' long/short numbers directly
+  above horizon 1.
+
 ## Architecture
 
 ```

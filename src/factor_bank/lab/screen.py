@@ -174,6 +174,8 @@ def screen(
 
     # ─── Stage 2: deep pass on the top-K survivors ──────────────────────────
     leaderboard: list[dict] = []
+    stage2_failures: list[str] = []
+    n_finalists = len(finalists)
     for j, r in enumerate(finalists, 1):
         cand = r["candidate"]
         m = r["metrics"]
@@ -212,8 +214,11 @@ def screen(
                 "dcor": _round(dcor),
             })
         except ValueError:
-            skipped.append(cand)
-        tick(f"stage 2: {j}/{top_k}")
+            # The candidate is already counted in `processed` (it survived
+            # stage 1) — recording a stage-2 failure into `skipped` too would
+            # double-count it against `n_candidates`. Track separately.
+            stage2_failures.append(cand)
+        tick(f"stage 2: {j}/{n_finalists}")
 
     leaderboard.sort(key=lambda r: (r["ic_ir"] is None, -abs(r["ic_ir"] or 0.0)))
 
@@ -222,6 +227,7 @@ def screen(
         "n_candidates": n,
         "n_skipped": len(skipped),
         "skipped": skipped,
+        "stage2_failures": stage2_failures,
         "split": {
             "train_dates": int(len(train_dates)),
             "holdout_dates": int(len(holdout_dates)),

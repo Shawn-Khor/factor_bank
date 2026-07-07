@@ -169,17 +169,17 @@ function renderResults(data) {
   const metricDefs = [
     { key: "ic",            label: "IC (Pearson)",   format: v => fmt(v) },
     { key: "rank_ic",       label: "Rank IC",         format: v => fmt(v) },
-    { key: "std_ic",        label: "Std IC",          format: v => fmt(v) },
+    { key: "std_ic",        label: "Std IC",          format: v => fmt(v), mode: "neutral" },
     { key: "ic_ir",         label: "IC IR",           format: v => fmt(v, 3) },
     { key: "pct_positive",  label: "% Positive",      format: v => fmtPct(v) },
     { key: "t_stat",        label: "t-stat",          format: v => fmt(v, 3) + pStar(m.p_value) },
-    { key: "p_value",       label: "p-value",         format: v => fmt(v, 5) },
-    { key: "n_obs",         label: "N obs",           format: v => String(v ?? "—") },
+    { key: "p_value",       label: "p-value",         format: v => fmt(v, 5), mode: "low-good" },
+    { key: "n_obs",         label: "N obs",           format: v => String(v ?? "—"), mode: "neutral" },
   ];
   grid.innerHTML = metricDefs.map(d => `
     <div class="metric">
       <div class="metric-label">${d.label}</div>
-      <div class="metric-value ${metricClass(m[d.key])}">${d.format(m[d.key])}</div>
+      <div class="metric-value ${metricClass(m[d.key], d.mode || "pos")}">${d.format(m[d.key])}</div>
     </div>
   `).join("");
 

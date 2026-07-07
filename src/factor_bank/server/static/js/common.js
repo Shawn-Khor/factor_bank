@@ -14,12 +14,23 @@ function pStar(p) {
   if (p < 0.05) return "*";
   return "";
 }
-function metricClass(v, posIsGood = true) {
+// `mode` picks the color semantics for a metric tile:
+//  - "pos" (default): large positive is good (green), large negative is bad
+//    (red) — e.g. IC, Rank IC, t-stat.
+//  - "low-good": small values are good (green), large values are bad (red)
+//    — e.g. p-value, where LOW means statistically significant.
+//  - "neutral": never colored — e.g. std_ic, n_obs, where there's no
+//    universal "good" direction to signal.
+function metricClass(v, mode = "pos") {
   if (v == null || !isFinite(v)) return "";
-  if (posIsGood) {
-    if (v >= 0.05) return "green";
-    if (v <= -0.05) return "red";
+  if (mode === "neutral") return "";
+  if (mode === "low-good") {
+    if (v < 0.05) return "green";
+    if (v > 0.05) return "red";
+    return "";
   }
+  if (v >= 0.05) return "green";
+  if (v <= -0.05) return "red";
   return "";
 }
 
@@ -119,7 +130,15 @@ function applyTooltips(scopeEl) {
 // ─── Job polling + heatmap helpers (ML Eval) ────────────────────────────────
 async function pollJob(jobId, onProgress, intervalMs = 2000) {
   for (;;) {
-    const rec = await fetch(`/api/jobs/${jobId}`).then(r => r.json());
+    const res = await fetch(`/api/jobs/${jobId}`);
+    const rec = await res.json();
+    // A 404 (unknown job id — server restarted, or the job was evicted from
+    // the 20-job history) or any body missing `status` used to fall through
+    // to onProgress(rec), rendering "undefined" and polling forever. Treat
+    // both as a hard, user-visible failure instead.
+    if (!res.ok || !rec.status) {
+      throw new Error("job no longer exists — the server may have restarted");
+    }
     if (rec.status === "done") return rec.result;
     if (rec.status === "error") throw new Error(rec.error + "\n" + (rec.detail || ""));
     onProgress(rec);

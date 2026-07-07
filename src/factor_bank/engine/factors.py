@@ -29,6 +29,16 @@ _PASSTHROUGH_COLS: set[str] = set(
 )
 
 
+def _req(df: pd.DataFrame, *cols: str) -> None:
+    """Raise a clean ValueError (instead of a raw KeyError downstream) if a
+    derived factor's underlying column has disappeared from the enriched
+    frame (e.g. schema drift, or disk_cache._select silently dropping a
+    column that vanished from the upstream parquet)."""
+    for c in cols:
+        if c not in df.columns:
+            raise ValueError(f"Column '{c}' not present in enriched data")
+
+
 def compute_factor(df: pd.DataFrame, name: str) -> pd.Series:
     """Compute one factor on the enriched DataFrame, returning a Series indexed
     to the same rows as df.
@@ -61,34 +71,45 @@ def compute_factor(df: pd.DataFrame, name: str) -> pd.Series:
 
     # Wave 2 — yield transforms
     if name == "earnings_yield":
+        _req(df, "pe")
         return 1.0 / df["pe"].replace(0, np.nan)
     if name == "book_yield":
+        _req(df, "pb")
         return 1.0 / df["pb"].replace(0, np.nan)
     if name == "sales_yield":
+        _req(df, "ps")
         return 1.0 / df["ps"].replace(0, np.nan)
     if name == "ebitda_yield":
+        _req(df, "evebitda")
         return 1.0 / df["evebitda"].replace(0, np.nan)
 
     # Wave 3 — capital structure
     if name == "ev_to_mcap":
+        _req(df, "ev", "marketcap")
         return df["ev"] / df["marketcap"].replace(0, np.nan)
     if name == "log_marketcap":
+        _req(df, "marketcap")
         mc = df["marketcap"].astype(float)
         return np.log(mc.where(mc > 0))
 
     # Wave 4 — time-series transforms (per-ticker rolling)
     if name == "pe_zscore_252d":
+        _req(df, "pe")
         return _rolling_zscore(df, "pe", 252)
     if name == "ebitda_yield_zscore_252d":
+        _req(df, "evebitda")
         ey = 1.0 / df["evebitda"].replace(0, np.nan)
         return _rolling_zscore_series(df["ticker"], ey, 252)
     if name == "pe_change_30d":
+        _req(df, "pe")
         return _per_ticker_shift_diff(df, "pe", 30)
     if name == "pb_percentile_252d":
+        _req(df, "pb")
         return _rolling_percentile(df, "pb", 252)
 
     # Wave 5 — cross-sectional
     if name == "evebitda_sector_relative":
+        _req(df, "evebitda", "sector")
         ee = df["evebitda"]
         sec_median = df.assign(_ee=ee).groupby(["date", "sector"])["_ee"].transform("median")
         return ee - sec_median

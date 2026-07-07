@@ -47,6 +47,19 @@ def test_end_to_end_screening_and_redundancy(market_with_noise):
     assert msgs, "progress callback never called"
 
 
+def test_bad_factor_column_fails_job_naming_the_factor(market_with_noise):
+    """Ops-scan #5: a derived factor whose underlying column vanished from
+    the enriched frame (schema drift) must abort the whole ml-eval job with
+    a message naming the specific factor, not a bare KeyError."""
+    enriched, spells = market_with_noise
+    enriched = enriched.drop(columns=["pb"])
+    with pytest.raises(ValueError, match="book_yield"):
+        run_ml_eval(
+            ["pe", "book_yield"], [21], "2019-01-01", "2020-01-01",
+            mode="quick", enriched=enriched, spells=spells,
+        )
+
+
 def test_mode_map():
     assert MODE_PERMUTATIONS == {"quick": 0, "standard": 50, "thorough": 200}
 

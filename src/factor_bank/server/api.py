@@ -1,10 +1,11 @@
 """HTTP API. Plans B/C add routes to this same router."""
 from __future__ import annotations
 
+import json
 import math
+import time
 import traceback
 
-import pandas as pd
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -17,7 +18,6 @@ from factor_bank.data import store as store_mod
 from factor_bank.data import universe as universe_mod
 from factor_bank.data.enriched import load_enriched
 from factor_bank.data.sharadar import load_sp500_events, load_tickers
-from factor_bank.data.universe import get_spells
 from factor_bank.engine import panel as panel_mod
 from factor_bank.engine.catalog import FACTOR_CATALOG
 from factor_bank.engine.evaluate import evaluate
@@ -32,15 +32,6 @@ router = APIRouter()
 ALLOWED_SCAN_TABS = {"evaluate", "mleval", "lab"}
 
 
-# Indirection points so tests (and Plan B jobs) can inject data:
-def _get_enriched() -> pd.DataFrame:
-    return load_enriched()
-
-
-def _get_spells() -> pd.DataFrame:
-    return get_spells()
-
-
 def _sanitize(obj):
     if isinstance(obj, dict):
         return {k: _sanitize(v) for k, v in obj.items()}
@@ -51,9 +42,35 @@ def _sanitize(obj):
     return obj
 
 
+def _data_cache_age_hours() -> float | None:
+    """Hours since the most recently fetched disk-cache object (the newest
+    `fetched_at` across every `objects/*.json` meta file). None if the cache
+    dir doesn't exist yet or holds no objects. No S3 calls — reads local meta
+    JSON only, so this stays fast enough to call on every health check."""
+    objects_dir = get_settings().cache_dir / "objects"
+    newest = None
+    for meta_path in objects_dir.glob("*.json"):
+        try:
+            fetched_at = json.loads(meta_path.read_text()).get("fetched_at")
+        except (OSError, ValueError):
+            continue
+        if fetched_at is not None and (newest is None or fetched_at > newest):
+            newest = fetched_at
+    if newest is None:
+        return None
+    return (time.time() - newest) / 3600.0
+
+
 @router.get("/health")
 def health():
-    return {"ok": True}
+    age_hours = _data_cache_age_hours()
+    counts = JOBS.counts()
+    return {
+        "ok": True,
+        "data_cache_age_hours": round(age_hours, 2) if age_hours is not None else None,
+        "jobs_queued": counts["queued"],
+        "jobs_running": counts["running"],
+    }
 
 
 @router.get("/factors")
@@ -95,9 +112,15 @@ class MLEvalRequest(BaseModel):
 @router.post("/evaluate")
 def run_evaluate(req: EvaluateRequest):
     try:
+        # No pinned enriched/spells here (same pattern /api/ml-eval and
+        # /api/lab/screen already use) — evaluate() routes through
+        # engine.panel.get_window, whose TTL memo only engages when the
+        # caller passes neither frame, so repeat requests over the same
+        # (from_date, to_date, horizon) hit the memo instead of re-slicing
+        # the full enriched frame every time.
         result = evaluate(
             req.factor, req.from_date, req.to_date, req.horizon, req.n_quantiles,
-            enriched=_get_enriched(), spells=_get_spells(), winsorize=req.winsorize,
+            winsorize=req.winsorize,
         )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})

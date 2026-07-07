@@ -75,6 +75,30 @@ def test_sector_rel_transform(df):
     assert np.allclose(got.dropna(), 0.0)
 
 
+@pytest.mark.parametrize("name,missing_col", [
+    ("earnings_yield", "pe"),
+    ("book_yield", "pb"),
+    ("sales_yield", "ps"),
+    ("ebitda_yield", "evebitda"),
+    ("ev_to_mcap", "ev"),
+    ("log_marketcap", "marketcap"),
+    ("pe_zscore_252d", "pe"),
+    ("ebitda_yield_zscore_252d", "evebitda"),
+    ("pe_change_30d", "pe"),
+    ("pb_percentile_252d", "pb"),
+    ("evebitda_sector_relative", "evebitda"),
+])
+def test_derived_factor_missing_column_raises_valueerror_not_keyerror(df, name, missing_col):
+    """F5/schema-drift hardening: a derived factor whose underlying column
+    has disappeared from the enriched frame (upstream drift, or
+    disk_cache._select silently dropping it) must raise a clean ValueError —
+    the same exception type/handling every other factor branch already uses
+    — not a raw KeyError that callers up the stack don't expect."""
+    d = df.drop(columns=[missing_col], errors="ignore")  # already absent from the fixture for some cases
+    with pytest.raises(ValueError, match=f"'{missing_col}'"):
+        compute_factor(d, name)
+
+
 def test_generated_name_errors():
     d = pd.DataFrame({"ticker": ["A"], "date": [pd.Timestamp("2019-01-02")],
                       "sector": ["T"], "pe": [1.0]})

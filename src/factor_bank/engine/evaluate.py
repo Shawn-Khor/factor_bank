@@ -5,8 +5,6 @@ import pandas as pd
 
 from factor_bank.config import ALLOWED_HORIZONS, ALLOWED_QUANTILES, get_settings
 from factor_bank.data.custom import custom_names
-from factor_bank.data.enriched import load_enriched
-from factor_bank.data.universe import filter_to_sp500, get_spells
 from factor_bank.engine.catalog import all_factor_names
 from factor_bank.engine.factors import TRANSFORMS, compute_factor
 from factor_bank.engine.metrics import (
@@ -14,6 +12,7 @@ from factor_bank.engine.metrics import (
     trading_session_forward_returns,
     verdict,
 )
+from factor_bank.engine.panel import get_window
 from factor_bank.engine.quality import quality_report
 from factor_bank.engine.quantiles import quantile_spread
 
@@ -48,14 +47,13 @@ def evaluate(
     if from_ts < floor:
         raise ValueError(f"from_date {from_date} below floor {floor.date()}")
 
-    df_all = enriched if enriched is not None else load_enriched()
-    sp = spells if spells is not None else get_spells()
-
-    buf_start = from_ts - pd.Timedelta(days=400)
-    buf_end = to_ts + pd.Timedelta(days=int(horizon * 1.6) + 7)
-    df = df_all[(df_all["date"] >= buf_start) & (df_all["date"] <= buf_end)].copy()
-    df = df.sort_values(["ticker", "date"]).reset_index(drop=True)
-    df = filter_to_sp500(df, sp)
+    # Buffer-slice + sort + S&P-500-filter is identical to (and memoized by)
+    # engine.panel.get_window — routing through it here means repeat calls
+    # with the same (from_date, to_date, horizon) hit the TTL memo instead of
+    # re-materializing the full enriched frame every time. get_window only
+    # engages its memo when both enriched/spells are None (the caller didn't
+    # pin frames), which is exactly the /api/evaluate route's behavior.
+    df = get_window(from_date, to_date, horizon, enriched=enriched, spells=spells)
     if df.empty:
         return {"error": "No data after S&P 500 filtering"}
 
@@ -78,7 +76,7 @@ def evaluate(
     R = fwd_full.loc[common_dates, common_tickers]
 
     metrics = cross_sectional_metrics(F, R, winsorize=winsorize)
-    qs = quantile_spread(F, R, n_quantiles)
+    qs = quantile_spread(F, R, n_quantiles, horizon=horizon)
 
     return {
         "factor": factor_name,

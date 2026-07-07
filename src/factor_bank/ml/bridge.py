@@ -60,7 +60,15 @@ def run_ml_eval(
     features: dict[str, pd.DataFrame] = {}
     for i, name in enumerate(dict.fromkeys(factors), 1):
         tick(f"factor matrices {i}/{len(set(factors))}: {name}")
-        vals = compute_factor(df, name)
+        # Unlike lab/screen.py (which skips a bad candidate out of hundreds
+        # and keeps going), ml-eval users pick a small, explicit factor list
+        # — a column that vanished from the enriched frame (schema drift)
+        # should fail the whole job loudly, naming the factor, rather than
+        # silently dropping it from the battery.
+        try:
+            vals = compute_factor(df, name)
+        except ValueError as e:
+            raise ValueError(f"Factor '{name}' failed: {e}") from e
         features[name] = (
             df[in_window].assign(_f=vals[in_window])
             .pivot_table(index="date", columns="ticker", values="_f")
