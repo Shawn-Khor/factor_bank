@@ -338,8 +338,24 @@ if (saveScanBtn) {
   saveScanBtn.addEventListener("click", () => saveScan("evaluate", getEvaluateConfig));
 }
 
-window.fbRestore.evaluate = function (config) {
+window.fbRestore.evaluate = async function (config) {
   if (!config) return;
+  // Same catalog-ready guard the other tabs' restores carry (I-4): boot fires
+  // three independent /api/factors fetches (evaluate/mleval/lab), and this
+  // restore can otherwise run before evaluate's own `state.catalog` is set,
+  // making renderHorizons() throw on a null catalog and die silently.
+  if (!state.catalog) {
+    if (window.fbCatalog) {
+      state.catalog = window.fbCatalog;
+    } else {
+      await window.fbWaitForCatalog();
+      if (!state.catalog && window.fbCatalog) state.catalog = window.fbCatalog;
+    }
+  }
+  if (!state.catalog) {
+    setStatus("Couldn't load the factor catalog — restore aborted.", true);
+    return;
+  }
   if (config.from_date) {
     document.getElementById("from-date").value = config.from_date;
     state.fromDate = config.from_date;

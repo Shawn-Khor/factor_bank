@@ -32,6 +32,8 @@ def validate_and_store(name: str, raw: bytes) -> dict:
         raise ValueError("name must not contain '__' (reserved for transforms)")
     if name in all_factor_names():
         raise ValueError(f"name collides with catalog factor '{name}'")
+    if store.get_custom(name) is not None:
+        raise ValueError(f"custom factor '{name}' already exists — delete it first")
     if len(raw) > MAX_BYTES:
         raise ValueError("file exceeds 20 MB limit")
 
@@ -44,7 +46,11 @@ def validate_and_store(name: str, raw: bytes) -> dict:
     if df.empty:
         raise ValueError("CSV has no rows")
     try:
-        df["date"] = pd.to_datetime(df["date"])
+        # .dt.normalize() drops any time-of-day component so intraday
+        # timestamps (e.g. "2019-06-03 15:30:00") align on exact date equality
+        # against midnight-normalized enriched dates at merge time (M-1) —
+        # otherwise validation passes but every merged value comes back NaN.
+        df["date"] = pd.to_datetime(df["date"]).dt.normalize()
     except Exception as e:
         raise ValueError(f"unparseable dates: {e}") from e
     df["value"] = pd.to_numeric(df["value"], errors="coerce")

@@ -113,8 +113,15 @@ def screen(
 
     dates = np.sort(df.loc[in_window, "date"].unique())
     split = int(len(dates) * 0.7)
-    train_dates = dates[:split]
+    train_dates_raw = dates[:split]
     holdout_dates = dates[split:]
+
+    # Embargo: a train date's forward return at `horizon` sessions ahead can
+    # land inside the holdout price path, which would let stage-1 selection
+    # see holdout information. Drop the last `horizon` train dates so every
+    # train-stage forward return is realized strictly before the holdout
+    # segment starts.
+    train_dates = train_dates_raw[:-horizon] if horizon > 0 else train_dates_raw
     if len(train_dates) < MIN_TRAIN_DATES:
         raise ValueError(
             f"Only {len(train_dates)} train dates in window (need >= {MIN_TRAIN_DATES})"
@@ -215,7 +222,11 @@ def screen(
         "n_candidates": n,
         "n_skipped": len(skipped),
         "skipped": skipped,
-        "split": {"train_dates": int(len(train_dates)), "holdout_dates": int(len(holdout_dates))},
+        "split": {
+            "train_dates": int(len(train_dates)),
+            "holdout_dates": int(len(holdout_dates)),
+            "embargo_dates": int(horizon),
+        },
         "meta": {
             "horizon": horizon,
             "from_date": from_date,

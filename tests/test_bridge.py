@@ -1,5 +1,6 @@
 import json
 
+import pandas as pd
 import pytest
 
 from factor_bank.ml.bridge import MODE_PERMUTATIONS, run_ml_eval
@@ -48,3 +49,33 @@ def test_end_to_end_screening_and_redundancy(market_with_noise):
 
 def test_mode_map():
     assert MODE_PERMUTATIONS == {"quick": 0, "standard": 50, "thorough": 200}
+
+
+def test_custom_factor_accepted_through_run_ml_eval(monkeypatch, tmp_path, synthetic_market):
+    """Seam test (M-8): a custom factor registered via data/custom.py resolves
+    end-to-end through run_ml_eval exactly like a built-in factor — this seam
+    crosses data/custom.py, engine/factors.py (compute_factor), and
+    ml/bridge.py, and was previously verified by code reading only, not by a
+    test."""
+    monkeypatch.setenv("FB_CACHE_DIR", str(tmp_path))
+    from factor_bank.data import custom
+
+    custom.clear_memo()
+    enriched, spells = synthetic_market
+    df = enriched.sort_values(["ticker", "date"]).reset_index(drop=True)
+    upload = pd.DataFrame({
+        "ticker": df["ticker"],
+        "date": df["date"].dt.strftime("%Y-%m-%d"),
+        "value": df["pe"],
+    })
+    custom.validate_and_store("custom_pe_seam", upload.to_csv(index=False).encode())
+    try:
+        out = run_ml_eval(
+            ["pe", "custom_pe_seam"], [21], "2019-01-01", "2020-01-01",
+            mode="quick", enriched=enriched, spells=spells,
+        )
+        json.dumps(out)
+        feats = {r["feature"] for r in out["screening"]}
+        assert "custom_pe_seam" in feats
+    finally:
+        custom.clear_memo()

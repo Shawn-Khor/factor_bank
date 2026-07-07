@@ -51,7 +51,16 @@ class JobStore:
 
     def get(self, job_id: str) -> dict | None:
         with self._lock:
-            return self._jobs.get(job_id)
+            rec = self._jobs.get(job_id)
+            if rec is None:
+                return None
+            n_ahead = 0
+            for k, r in self._jobs.items():
+                if k == job_id:
+                    break
+                if r["status"] in ("queued", "running"):
+                    n_ahead += 1
+            return dict(rec, n_ahead=n_ahead)
 
     def _evict(self) -> None:
         # Only finished jobs are evicted, oldest first (lock held by caller).

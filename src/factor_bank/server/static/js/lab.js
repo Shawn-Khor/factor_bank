@@ -118,7 +118,11 @@ async function runLabScreen() {
     setLabStatus(`Running job ${data.job_id}…`);
 
     const result = await pollJob(data.job_id, rec => {
-      progressText.textContent = rec.progress || rec.status;
+      if (rec.status === "queued" && rec.n_ahead > 0) {
+        progressText.textContent = `queued behind ${rec.n_ahead} job(s)`;
+      } else {
+        progressText.textContent = rec.progress || rec.status;
+      }
     });
     labState.lastResult = result;
     renderLabResults(result, { fromDate, toDate, horizon });

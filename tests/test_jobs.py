@@ -1,3 +1,4 @@
+import threading
 import time
 
 from fastapi.testclient import TestClient
@@ -64,3 +65,30 @@ def test_jobs_endpoint_unknown_404():
     client = TestClient(create_app())
     r = client.get("/api/jobs/nope1234")
     assert r.status_code == 404 and "error" in r.json()
+
+
+def test_n_ahead_reflects_queue_position():
+    """I-3: while a slow job is running, a job submitted behind it should
+    report n_ahead == 1 so the UI can render 'queued behind 1 job(s)'
+    instead of a bare, unexplained 'queued'."""
+    store = JobStore()
+    started = threading.Event()
+
+    def slow(progress):
+        started.set()
+        time.sleep(0.3)
+        return {}
+
+    j1 = store.submit(slow)
+    assert started.wait(2.0), "first job never started"
+
+    j2 = store.submit(lambda p: {})
+    rec2 = store.get(j2)
+    assert rec2["status"] == "queued"
+    assert rec2["n_ahead"] == 1
+
+    rec1 = store.get(j1)
+    assert rec1["n_ahead"] == 0  # nothing ahead of the job currently running
+
+    _wait(store, j1)
+    _wait(store, j2)

@@ -30,14 +30,25 @@ def _conn() -> sqlite3.Connection:
     return c
 
 
+_CREATE_SCAN_RETRIES = 5
+
+
 def create_scan(name: str, tab: str, config: dict) -> str:
-    scan_id = "".join(secrets.choice(_ALPHABET) for _ in range(6))
-    with _conn() as c:
-        c.execute(
-            "INSERT INTO scans VALUES (?, ?, ?, ?, ?)",
-            (scan_id, name, tab, json.dumps(config), time.time()),
-        )
-    return scan_id
+    # 6-char base36 id space is huge, but not infinite — retry on collision
+    # (sqlite3.IntegrityError on the PRIMARY KEY) rather than 500ing the user.
+    last_err: sqlite3.IntegrityError | None = None
+    for _ in range(_CREATE_SCAN_RETRIES):
+        scan_id = "".join(secrets.choice(_ALPHABET) for _ in range(6))
+        try:
+            with _conn() as c:
+                c.execute(
+                    "INSERT INTO scans VALUES (?, ?, ?, ?, ?)",
+                    (scan_id, name, tab, json.dumps(config), time.time()),
+                )
+            return scan_id
+        except sqlite3.IntegrityError as e:
+            last_err = e
+    raise last_err
 
 
 def list_scans() -> list[dict]:

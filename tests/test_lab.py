@@ -1,5 +1,6 @@
 import json
 
+import pandas as pd
 import pytest
 
 
@@ -17,9 +18,11 @@ def test_screen_finds_signal_and_reports_holdout(market_with_noise):
     # candidates restricted to a small hand-picked set for test speed:
     # pe__chg_5d (zero-dispersion -> skipped or null), pe__sector_rel (signal
     # survives sector demeaning in the fixture), ps__zscore_63d (noise)
+    from factor_bank.engine.panel import get_window
     from factor_bank.lab.screen import screen
     enriched, spells = market_with_noise
-    out = screen(21, "2019-06-01", "2020-06-01", top_k=3,
+    horizon = 21
+    out = screen(horizon, "2019-06-01", "2020-06-01", top_k=3,
                  enriched=enriched, spells=spells,
                  candidates=["pe__sector_rel", "ps__zscore_63d", "pe__chg_5d"])
     lb = {r["candidate"]: r for r in out["leaderboard"]}
@@ -30,6 +33,21 @@ def test_screen_finds_signal_and_reports_holdout(market_with_noise):
     assert lb["ps__zscore_63d"]["q_value"] >= lb["pe__sector_rel"]["q_value"] or lb["pe__sector_rel"]["q_value"] is None
     assert out["split"]["train_dates"] > out["split"]["holdout_dates"] > 0
     json.dumps(out)
+
+    # I-1 embargo: the last `horizon` train dates are held back from stage-1
+    # metrics (their forward-return targets would otherwise reach into the
+    # holdout price path), and every date in the window is accounted for
+    # across train + embargo + holdout — no date silently vanishes or is
+    # double-counted.
+    assert out["split"]["embargo_dates"] == horizon
+    df = get_window("2019-06-01", "2020-06-01", horizon, enriched=enriched, spells=spells)
+    from_ts, to_ts = pd.Timestamp("2019-06-01"), pd.Timestamp("2020-06-01")
+    in_window = (df["date"] >= from_ts) & (df["date"] <= to_ts)
+    total_dates = int(df.loc[in_window, "date"].nunique())
+    assert (
+        out["split"]["train_dates"] + out["split"]["embargo_dates"] + out["split"]["holdout_dates"]
+        == total_dates
+    )
 
 
 def test_screen_validates_window(market_with_noise):
@@ -47,6 +65,7 @@ def test_bh_fdr_monotone_in_p(market_with_noise):
                  enriched=enriched, spells=spells,
                  candidates=["pe__sector_rel", "ps__zscore_63d", "pe__chg_5d"])
     rows = [r for r in out["leaderboard"] if r["p_value"] is not None and r["q_value"] is not None]
+    assert len(rows) >= 2, "monotonicity assertion below is vacuous with <2 rows"
     rows.sort(key=lambda r: r["p_value"])
     qs = [r["q_value"] for r in rows]
     assert qs == sorted(qs)

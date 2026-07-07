@@ -59,7 +59,9 @@ factor-bank serve    # http://localhost:8200 by default
 ```
 
 `factor-bank serve --port 8201 --host 0.0.0.0` overrides the port/host without
-touching env vars. Open the printed URL — four tabs:
+touching env vars. On this host, port 8200 is already occupied by the legacy
+alpha-discovery dashboard, so factor-bank runs on 8201 here — set `FB_PORT=8201`
+or pass `--port 8201`. Open the printed URL — four tabs:
 
 - **Evaluate** — pick a factor, date range, forward-return horizon, and
   quantile count, then renders a verdict badge, the quality panel, and both

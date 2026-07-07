@@ -79,6 +79,18 @@ def test_catalog_collision_rejected():
         custom.validate_and_store("pe", _csv_bytes(_valid_df()))
 
 
+def test_duplicate_custom_name_rejected():
+    """M-5: re-uploading an existing custom name must fail loudly instead of
+    silently overwriting via INSERT OR REPLACE."""
+    custom.validate_and_store("my_sig", _csv_bytes(_valid_df()))
+    with pytest.raises(ValueError, match="already exists"):
+        custom.validate_and_store("my_sig", _csv_bytes(_valid_df()))
+    # Deleting frees the name back up.
+    assert custom.delete_custom_factor("my_sig") is True
+    result = custom.validate_and_store("my_sig", _csv_bytes(_valid_df()))
+    assert result["name"] == "my_sig"
+
+
 def test_too_large_rejected(monkeypatch):
     monkeypatch.setattr(custom, "MAX_BYTES", 10)
     with pytest.raises(ValueError, match="20 MB limit"):
@@ -162,6 +174,30 @@ def test_compute_factor_merges_custom_values(synthetic_market):
 
     # Everywhere else -> NaN (only 2 rows out of the whole fixture have values).
     assert result.isna().sum() == len(df) - 2
+
+
+def test_intraday_timestamps_normalized_and_merge_correctly(synthetic_market):
+    """M-1: dates with a time-of-day component (e.g. '2019-06-03 15:30:00')
+    must be normalized to midnight at upload so they merge correctly against
+    the midnight-normalized enriched frame — before the fix this validated
+    cleanly but merged to 100% NaN."""
+    enriched, _ = synthetic_market
+    df = enriched.sort_values(["ticker", "date"]).reset_index(drop=True)
+    sub = df[df["ticker"].isin(["T00", "T01"])].iloc[[0, 1]]
+    up = pd.DataFrame({
+        "ticker": sub["ticker"].tolist(),
+        "date": (sub["date"] + pd.Timedelta(hours=15, minutes=30)).dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "value": [42.0, -7.0],
+    })
+    result = custom.validate_and_store("custom_intraday", _csv_bytes(up))
+    assert result["date_min"] == str(sub["date"].min().date())
+    assert result["date_max"] == str(sub["date"].max().date())
+
+    loaded = custom.load_custom("custom_intraday")
+    assert (loaded["date"].dt.time == pd.Timestamp("00:00:00").time()).all()
+
+    computed = compute_factor(df, "custom_intraday")
+    assert computed.notna().sum() == 2  # merge must find the 2 rows, not 0
 
 
 def test_generated_name_over_custom_base(synthetic_market):

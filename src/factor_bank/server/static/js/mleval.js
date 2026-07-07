@@ -148,7 +148,11 @@ async function runMlEval() {
     setMlStatus(`Running job ${data.job_id}…`);
 
     const result = await pollJob(data.job_id, rec => {
-      progressText.textContent = rec.progress || rec.status;
+      if (rec.status === "queued" && rec.n_ahead > 0) {
+        progressText.textContent = `queued behind ${rec.n_ahead} job(s)`;
+      } else {
+        progressText.textContent = rec.progress || rec.status;
+      }
     });
     renderMlResults(result);
     setMlStatus("Done.");
@@ -310,14 +314,33 @@ window.fbRestore.mleval = function (config) {
     document.getElementById(`mlh-${h}`).checked = (config.horizons || []).includes(h);
   }
 
+  const savedFactors = config.factors || [];
+  const catalogPillNames = new Set(
+    Array.from(document.querySelectorAll("#ml-factor-pills .factor-pill")).map(p => p.textContent)
+  );
+  const missing = savedFactors.filter(f => !catalogPillNames.has(f));
+
   mlState.selected = new Set();
   document.querySelectorAll("#ml-factor-pills .factor-pill").forEach(pill => {
-    if ((config.factors || []).includes(pill.textContent)) {
+    if (savedFactors.includes(pill.textContent)) {
       mlState.selected.add(pill.textContent);
       pill.classList.add("active");
     }
   });
   updateMlCount();
+
+  if (missing.length > 0) {
+    const names = missing.join(", ");
+    const reason = mlState.selected.size < 2
+      ? `fewer than 2 factors remain — not running.`
+      : `not auto-running — reselect and click Run if the remaining ${mlState.selected.size} are enough.`;
+    setMlStatus(
+      `${missing.length} saved factor(s) no longer exist and were dropped: ${names}. ${reason}`,
+      true
+    );
+    return; // abort the auto-run whenever any saved factor is missing
+  }
+
   runMlEval();
 };
 
