@@ -17,6 +17,20 @@ def client(synthetic_market, monkeypatch):
     return TestClient(create_app())
 
 
+@pytest.fixture
+def scans_client(synthetic_market, monkeypatch, tmp_path):
+    # Dedicated fixture (rather than folding this into `client`) so the saved-scans
+    # DB lands in a tmp dir without forcing every other client-based test onto a
+    # cold FB_CACHE_DIR — several of them (e.g. test_warmup_clears_panel_memo) hit
+    # the real disk-cache/S3 path unmocked and are fast only because that cache is
+    # normally warm.
+    enriched, spells = synthetic_market
+    monkeypatch.setattr(api_mod, "_get_enriched", lambda: enriched)
+    monkeypatch.setattr(api_mod, "_get_spells", lambda: spells)
+    monkeypatch.setenv("FB_CACHE_DIR", str(tmp_path))
+    return TestClient(create_app())
+
+
 def test_health(client):
     assert client.get("/api/health").json() == {"ok": True}
 
@@ -140,3 +154,42 @@ def test_warmup_clears_panel_memo(client, monkeypatch):
     panel._memo[("x", "y", 1)] = (0.0, None)
     client.post("/api/warmup")
     assert panel._memo == {}
+
+
+def test_scans_crud_roundtrip(scans_client):
+    r = scans_client.post("/api/scans", json={
+        "name": "s1", "tab": "evaluate", "config": {"factor": "pe", "horizon": 21},
+    })
+    assert r.status_code == 201
+    sid = r.json()["id"]
+
+    r = scans_client.get(f"/api/scans/{sid}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "s1" and body["tab"] == "evaluate"
+    assert body["config"]["factor"] == "pe"
+
+    r = scans_client.get("/api/scans")
+    assert any(s["id"] == sid for s in r.json()["scans"])
+
+    r = scans_client.delete(f"/api/scans/{sid}")
+    assert r.json() == {"deleted": True}
+
+    r = scans_client.get(f"/api/scans/{sid}")
+    assert r.status_code == 404
+    assert "error" in r.json()
+
+
+def test_scans_blank_name_400(scans_client):
+    r = scans_client.post("/api/scans", json={"name": "   ", "tab": "evaluate", "config": {}})
+    assert r.status_code == 400
+
+
+def test_scans_bad_tab_400(scans_client):
+    r = scans_client.post("/api/scans", json={"name": "s1", "tab": "nope", "config": {}})
+    assert r.status_code == 400
+
+
+def test_scans_delete_unknown_returns_false(scans_client):
+    r = scans_client.delete("/api/scans/zzzzzz")
+    assert r.json() == {"deleted": False}

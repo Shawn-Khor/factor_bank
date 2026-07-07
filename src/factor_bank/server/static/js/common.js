@@ -62,3 +62,72 @@ function switchTab(name) {
 }
 document.querySelectorAll(".tab:not([disabled])").forEach(t =>
   t.addEventListener("click", () => switchTab(t.dataset.tab)));
+
+// ─── Saved scans ─────────────────────────────────────────────────────────────
+// Populated by evaluate.js / mleval.js (and, later, lab.js) — each tab
+// registers a restore(config) function here so ?scan= links can rehydrate it.
+window.fbRestore = {};
+
+function fbSetStatusFor(tab, msg, isError = false) {
+  if (tab === "evaluate" && typeof setStatus === "function") { setStatus(msg, isError); return; }
+  if (tab === "mleval" && typeof setMlStatus === "function") { setMlStatus(msg, isError); return; }
+  // eslint-disable-next-line no-console
+  console.log(`[${tab}] ${msg}`);
+}
+
+async function saveScan(tab, getConfig) {
+  const name = prompt("Name this scan:");
+  if (name == null || !name.trim()) return;
+  try {
+    const res = await fetch("/api/scans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), tab, config: getConfig() }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      fbSetStatusFor(tab, data.error || `HTTP ${res.status}`, true);
+      return;
+    }
+    const url = `${location.origin}/?scan=${data.id}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+    fbSetStatusFor(tab, `Saved as "${name.trim()}". Share URL copied to clipboard: ${url}`);
+  } catch (err) {
+    fbSetStatusFor(tab, err.message || String(err), true);
+  }
+}
+
+function fbWaitForCatalog(timeoutMs = 5000) {
+  return new Promise(resolve => {
+    const start = Date.now();
+    (function poll() {
+      if (window.fbCatalog || Date.now() - start > timeoutMs) { resolve(); return; }
+      setTimeout(poll, 50);
+    })();
+  });
+}
+
+async function fbRestoreFromQuery() {
+  const params = new URLSearchParams(location.search);
+  const scanId = params.get("scan");
+  if (!scanId) return;
+  try {
+    const res = await fetch(`/api/scans/${scanId}`);
+    if (!res.ok) return;
+    const rec = await res.json();
+    switchTab(rec.tab);
+    await fbWaitForCatalog();
+    const restore = window.fbRestore[rec.tab];
+    if (typeof restore === "function") {
+      restore(rec.config);
+    } else {
+      fbSetStatusFor(rec.tab, `Restore isn't available yet for the "${rec.tab}" tab.`, true);
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(err);
+  }
+}
+fbRestoreFromQuery();

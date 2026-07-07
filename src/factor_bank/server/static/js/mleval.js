@@ -267,5 +267,48 @@ function renderMdi(records) {
   });
 }
 
+// ─── Saved scans ───────────────────────────────────────────────────────────
+function getMlConfig() {
+  return {
+    factors: Array.from(mlState.selected),
+    horizons: getSelectedHorizons(),
+    from_date: document.getElementById("ml-from").value,
+    to_date: document.getElementById("ml-to").value,
+    quantiles: parseInt(document.getElementById("ml-quantiles").value, 10),
+    mode: document.getElementById("ml-mode").value,
+    tier2: document.getElementById("ml-tier2").checked,
+  };
+}
+
+const saveScanMlBtn = document.getElementById("save-scan-mleval");
+if (saveScanMlBtn) {
+  saveScanMlBtn.addEventListener("click", () => saveScan("mleval", getMlConfig));
+}
+
+window.fbRestore.mleval = function (config) {
+  if (!config) return;
+  if (!mlState.catalog && window.fbCatalog) mlState.catalog = window.fbCatalog;
+  renderMlFactorPills(); // idempotent — rebuilds pills from mlState.catalog
+
+  if (config.from_date) document.getElementById("ml-from").value = config.from_date;
+  if (config.to_date) document.getElementById("ml-to").value = config.to_date;
+  if (config.quantiles) document.getElementById("ml-quantiles").value = String(config.quantiles);
+  if (config.mode) document.getElementById("ml-mode").value = config.mode;
+  document.getElementById("ml-tier2").checked = !!config.tier2;
+  for (const h of ML_HORIZON_VALUES) {
+    document.getElementById(`mlh-${h}`).checked = (config.horizons || []).includes(h);
+  }
+
+  mlState.selected = new Set();
+  document.querySelectorAll("#ml-factor-pills .factor-pill").forEach(pill => {
+    if ((config.factors || []).includes(pill.textContent)) {
+      mlState.selected.add(pill.textContent);
+      pill.classList.add("active");
+    }
+  });
+  updateMlCount();
+  runMlEval();
+};
+
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadMlCatalog();

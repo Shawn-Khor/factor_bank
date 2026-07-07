@@ -274,5 +274,44 @@ function renderCumulativeChart(series) {
   });
 }
 
+// ─── Saved scans ───────────────────────────────────────────────────────────
+function getEvaluateConfig() {
+  return {
+    factor: state.selectedFactor,
+    from_date: state.fromDate,
+    to_date: state.toDate,
+    horizon: state.horizon,
+    n_quantiles: state.quantiles,
+  };
+}
+
+const saveScanBtn = document.getElementById("save-scan-evaluate");
+if (saveScanBtn) {
+  saveScanBtn.addEventListener("click", () => saveScan("evaluate", getEvaluateConfig));
+}
+
+window.fbRestore.evaluate = function (config) {
+  if (!config) return;
+  if (config.from_date) {
+    document.getElementById("from-date").value = config.from_date;
+    state.fromDate = config.from_date;
+  }
+  if (config.to_date) {
+    document.getElementById("to-date").value = config.to_date;
+    state.toDate = config.to_date;
+  }
+  if (config.n_quantiles) {
+    state.quantiles = config.n_quantiles;
+    document.getElementById("quantiles").value = String(config.n_quantiles);
+  }
+  if (config.horizon) state.horizon = config.horizon;
+  // Re-render so the horizon/factor widgets pick up state.catalog + state.horizon
+  // (idempotent — safe to call even if already rendered).
+  renderHorizons();
+  renderFactors();
+  if (config.factor) selectFactor(config.factor);
+  compute();
+};
+
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadCatalog();

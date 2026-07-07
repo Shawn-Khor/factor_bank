@@ -19,7 +19,7 @@
     <button class="tab active" data-tab="evaluate">Evaluate</button>
     <button class="tab" data-tab="mleval">ML Eval</button>
     <button class="tab" data-tab="lab" disabled title="Plan C">Factor Lab</button>
-    <button class="tab" data-tab="scans" disabled title="Plan C">Scans</button>
+    <button class="tab" data-tab="scans">Scans</button>
   </nav>
 
   <main id="tab-evaluate" class="tab-content active">
@@ -58,7 +58,10 @@
       <div id="factor-catalog"></div>
       <div class="compute-row">
         <div class="status" id="status">Pick one factor and click Compute.</div>
-        <button class="compute-btn" id="compute-btn" disabled>Compute</button>
+        <div class="compute-actions">
+          <button class="save-scan-btn" id="save-scan-evaluate">Save scan</button>
+          <button class="compute-btn" id="compute-btn" disabled>Compute</button>
+        </div>
       </div>
     </div>
 
@@ -138,7 +141,10 @@
       <div id="ml-factor-pills"></div>
       <div class="compute-row">
         <div class="status" id="ml-status">Pick 2–20 factors and click Run.</div>
-        <button class="compute-btn" id="ml-run" disabled>Run</button>
+        <div class="compute-actions">
+          <button class="save-scan-btn" id="save-scan-mleval">Save scan</button>
+          <button class="compute-btn" id="ml-run" disabled>Run</button>
+        </div>
       </div>
     </div>
 
@@ -176,11 +182,18 @@
     </div>
   </main>
   <main id="tab-lab" class="tab-content"></main>
-  <main id="tab-scans" class="tab-content"></main>
+  <main id="tab-scans" class="tab-content">
+    <div class="card">
+      <div class="card-title">Saved scans</div>
+      <div class="status" id="scans-status">Loading…</div>
+      <div id="scans-table"></div>
+    </div>
+  </main>
 </div>
 
 <script src="/js/common.js?v=1"></script>
 <script src="/js/evaluate.js?v=1"></script>
 <script src="/js/mleval.js?v=1"></script>
+<script src="/js/scans.js?v=1"></script>
 </body>
 </html>

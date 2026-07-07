@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from factor_bank.config import ALLOWED_HORIZONS, ALLOWED_QUANTILES, get_settings
 from factor_bank.data import enriched as enriched_mod
 from factor_bank.data import sharadar as sharadar_mod
+from factor_bank.data import store as store_mod
 from factor_bank.data import universe as universe_mod
 from factor_bank.data.enriched import load_enriched
 from factor_bank.data.sharadar import load_sp500_events, load_tickers
@@ -23,6 +24,8 @@ from factor_bank.ml.bridge import ML_HORIZONS, MAX_FACTORS, MODE_PERMUTATIONS, r
 from factor_bank.server.jobs import JOBS
 
 router = APIRouter()
+
+ALLOWED_SCAN_TABS = {"evaluate", "mleval", "lab"}
 
 
 # Indirection points so tests (and Plan B jobs) can inject data:
@@ -152,3 +155,40 @@ def get_job(job_id: str):
     if rec is None:
         return JSONResponse(status_code=404, content={"error": "unknown job"})
     return _sanitize(rec)
+
+
+class ScanRequest(BaseModel):
+    name: str
+    tab: str
+    config: dict
+
+
+@router.post("/scans", status_code=201)
+def create_scan(req: ScanRequest):
+    if not req.name.strip():
+        return JSONResponse(status_code=400, content={"error": "name must not be blank"})
+    if req.tab not in ALLOWED_SCAN_TABS:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"tab must be one of {sorted(ALLOWED_SCAN_TABS)}"},
+        )
+    scan_id = store_mod.create_scan(req.name, req.tab, req.config)
+    return {"id": scan_id}
+
+
+@router.get("/scans")
+def list_scans():
+    return {"scans": store_mod.list_scans()}
+
+
+@router.get("/scans/{scan_id}")
+def get_scan(scan_id: str):
+    rec = store_mod.get_scan(scan_id)
+    if rec is None:
+        return JSONResponse(status_code=404, content={"error": "unknown scan"})
+    return rec
+
+
+@router.delete("/scans/{scan_id}")
+def delete_scan(scan_id: str):
+    return {"deleted": store_mod.delete_scan(scan_id)}
