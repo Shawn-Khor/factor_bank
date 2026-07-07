@@ -1,0 +1,15 @@
+[Unit]
+Description=Factor Bank dashboard (factor-bank serve)
+After=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=/home/shawnkhor/factor_bank
+ExecStart=/home/shawnkhor/factor_bank/.venv/bin/factor-bank serve --port 8201
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
