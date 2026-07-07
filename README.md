@@ -1,5 +1,12 @@
 # factor-bank
 
+> **⚠️ This repo has moved.** As of 2026-07-07, factor_bank lives inside
+> [softdevintegrations/alpha_eval](https://github.com/softdevintegrations/alpha_eval)
+> as a second package (merged via PR #1). Install with
+> `pip install "alpha_eval[dashboard] @ git+https://github.com/softdevintegrations/alpha_eval.git"`
+> and see `docs/FACTOR_BANK.md` there. This repo is kept as the development-history
+> archive (3 build phases with per-task reviews) and receives no further updates.
+
 A standalone, pip-installable dashboard for cross-sectional evaluation of stock
 factors against the historical S&P 500. Point it at S3-hosted Sharadar and Nexus
 data, run one command, and get a web UI that scores a factor's predictive power
