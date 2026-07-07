@@ -101,6 +101,7 @@ def test_ml_eval_flow(client, monkeypatch):
 
     def fake_run(factors, horizons, from_date, to_date, quantiles=5,
                  mode="standard", tier2=False, progress=None, **kw):
+        assert kw.get("enriched") is None and kw.get("spells") is None
         progress("halfway")
         return {"screening": [{"feature": f} for f in factors], "meta": {"mode": mode}}
 

@@ -107,11 +107,14 @@ def submit_ml_eval(req: MLEvalRequest):
     if req.quantiles not in ALLOWED_QUANTILES:
         return JSONResponse(status_code=400, content={"error": f"quantiles must be one of {ALLOWED_QUANTILES}"})
 
-    enriched, spells = _get_enriched(), _get_spells()
+    # Don't resolve/pass enriched/spells here: get_window only memoizes its
+    # TTL cache when both are None, so passing no frames lets the window memo
+    # engage across jobs (repeat date ranges hit cache instead of re-filtering
+    # the full frame). /api/warmup clears the memo for a refresh.
     job_id = JOBS.submit(lambda progress: _sanitize(run_ml_eval(
         req.factors, req.horizons, req.from_date, req.to_date,
         quantiles=req.quantiles, mode=req.mode, tier2=req.tier2,
-        progress=progress, enriched=enriched, spells=spells,
+        progress=progress,
     )))
     return {"job_id": job_id}
 
