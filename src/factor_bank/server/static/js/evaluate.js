@@ -8,6 +8,8 @@ const state = {
   toDate: null,
   quantileChart: null,
   cumulativeChart: null,
+  quantile_means: null,
+  longshort_cumulative: null,
 };
 
 // ─── Init defaults ─────────────────────────────────────────────────────────
@@ -201,6 +203,8 @@ function renderResults(data) {
     <span><strong>${lss.n_days ?? "—"}</strong> trading days</span>
   `;
 
+  state.quantile_means = data.quantile_means;
+  state.longshort_cumulative = data.longshort_cumulative;
   renderQuantileChart(data.quantile_means, data.n_quantiles);
   renderCumulativeChart(data.longshort_cumulative);
   applyTooltips(document.getElementById("results"));
@@ -385,6 +389,19 @@ window.fbOpenInEvaluate = function (factor, from_date, to_date, horizon) {
   setStatus(`Opened '${factor}' from Factor Lab. Running…`);
   compute();
 };
+
+// ─── Quantile analysis CSV export ──────────────────────────────────────────
+const csvQuantileBtn = document.getElementById("csv-quantile");
+if (csvQuantileBtn) {
+  csvQuantileBtn.addEventListener("click", () => {
+    const quantileCsv = state.quantile_means ? recordsToCsv(state.quantile_means) : "";
+    const cumulativeCsv = state.longshort_cumulative ? recordsToCsv(state.longshort_cumulative) : "";
+    const combined = [quantileCsv, "", cumulativeCsv].filter(s => s || s === "").join("\r\n");
+    if (combined.trim()) {
+      downloadCsv("quantile_analysis.csv", combined);
+    }
+  });
+}
 
 // ─── Boot ──────────────────────────────────────────────────────────────────
 loadCatalog();

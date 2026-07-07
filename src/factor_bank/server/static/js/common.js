@@ -53,6 +53,16 @@ function downloadCsv(filename, csv) {
   URL.revokeObjectURL(url);
 }
 
+function recordsToCsv(records) {
+  if (!records || !records.length) return "";
+  const cols = Object.keys(records[0]);
+  const esc = v => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","), ...records.map(r => cols.map(c => esc(r[c])).join(","))].join("\r\n");
+}
+
 // Binds a "⬇ CSV" button (by id) to export whatever <table> currently lives
 // inside a container (by id). The table is resolved at CLICK time (not bind
 // time) so the button always exports the most recently rendered table, even
