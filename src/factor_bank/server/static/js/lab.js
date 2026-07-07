@@ -165,7 +165,7 @@ function renderLabLeaderboard(rows, ctx) {
       <td style="text-align:left; font-family: ui-monospace, monospace">${labEscapeHtml(r.candidate)}</td>
       <td>${fmt(r.train_rank_ic, 4)}</td>
       <td>${fmt(r.ic_ir, 3)}</td>
-      <td>${fmt(r.q_value, 4)}${pStar(r.p_value)}</td>
+      <td>${fmt(r.q_value, 4)}${pStar(r.q_value)}</td>
       <td>${fmt(r.mi, 4)}</td>
       <td>${fmt(r.dcor, 4)}</td>
       <td>${fmt(r.holdout_rank_ic, 4)}${flipBadge}</td>

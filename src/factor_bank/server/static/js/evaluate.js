@@ -52,7 +52,7 @@ function renderHorizons() {
     btn.textContent = `${h}D`;
     btn.addEventListener("click", () => {
       state.horizon = h;
-      document.querySelectorAll(".horizon-btn").forEach(b => b.classList.remove("active"));
+      row.querySelectorAll(".horizon-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
     });
     row.appendChild(btn);
